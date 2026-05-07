@@ -142,7 +142,7 @@ terraform -chdir=infra/terraform destroy \
 
 ## CI/CD con GitHub Actions
 
-El repositorio incluye dos workflows:
+El repositorio incluye tres workflows:
 
 - [ci.yml](/Users/pazfernando/Documents/projects/windsurf/workshop-order-processing/.github/workflows/ci.yml): valida sintaxis JavaScript, empaqueta Lambda y ejecuta `terraform fmt` y `terraform validate`
 - [deploy.yml](/Users/pazfernando/Documents/projects/windsurf/workshop-order-processing/.github/workflows/deploy.yml): despliega automáticamente a AWS cuando hay push a `main`, y permite ejecución manual con `workflow_dispatch`

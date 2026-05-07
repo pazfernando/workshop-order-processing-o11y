@@ -16,7 +16,7 @@ Este repositorio contiene un caso de negocio base para talleres técnicos sobre 
 ## Convenciones técnicas
 
 - Runtime: Node.js 20.x
-- IaC: AWS SAM
+- IaC: Terraform
 - SDK: AWS SDK v3
 - Módulos JavaScript en CommonJS
 - Scripts shell en `scripts/`
@@ -26,20 +26,22 @@ Este repositorio contiene un caso de negocio base para talleres técnicos sobre 
 
 - Instalar dependencias: `npm install`
 - Verificación rápida: `npm run check`
-- Validar plantilla SAM: `sam validate`
-- Compilar aplicación: `sam build`
-- Desplegar localmente: `bash scripts/deploy.sh`
+- Empaquetar Lambdas: `bash scripts/prepare-lambda-package.sh`
+- Validar Terraform: `terraform -chdir=infra/terraform init -backend=false && terraform -chdir=infra/terraform validate`
+- Formatear Terraform: `terraform -chdir=infra/terraform fmt -recursive`
+- Desplegar localmente: `terraform -chdir=infra/terraform apply`
 
 ## CI/CD
 
 - La validación continua vive en `.github/workflows/ci.yml`
 - El despliegue continuo vive en `.github/workflows/deploy.yml`
+- La destrucción manual vive en `.github/workflows/teardown.yml`
 - El deploy en GitHub Actions usa `AWS_ACCESS_KEY_ID` y `AWS_SECRET_ACCESS_KEY` desde GitHub Secrets
-- Las variables de despliegue esperadas son `AWS_REGION`, `STACK_NAME` y `PAYMENT_FAILURE_MODE`
+- Las variables de despliegue esperadas son `AWS_REGION`, `STACK_NAME`, `RESOURCE_PREFIX`, `PAYMENT_FAILURE_MODE`, `TF_STATE_BUCKET` y `TF_STATE_KEY`
 
 ## Guía para cambios futuros
 
 - Si se agrega observabilidad, hacerlo de forma incremental y sin romper el flujo funcional actual.
-- Si se cambia el modelo de despliegue o autenticación AWS, actualizar también `README.md`, `scripts/deploy.sh` y los workflows de GitHub Actions.
+- Si se cambia el modelo de despliegue o autenticación AWS, actualizar también `README.md`, `infra/terraform/*`, `scripts/prepare-lambda-package.sh` y los workflows de GitHub Actions.
 - Si se agregan nuevos componentes AWS, documentar claramente el motivo y el impacto en el taller.
-
+- `README.md` es la referencia operativa principal del repositorio; no mantener documentos transitorios paralelos.
