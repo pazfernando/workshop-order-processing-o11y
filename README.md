@@ -109,6 +109,7 @@ Nota: esta solución usa API Gateway HTTP API. Esa variante no soporta tracing a
 La guía completa de observabilidad, ADOT, OTLP, Collector, variables y casos de despliegue vive en:
 
 - [Observability Deployment Guide](/Users/pazfernando/Documents/projects/windsurf/workshop-order-processing/docs/observability-deployment.md)
+- [Deployment Profile](/Users/pazfernando/Documents/projects/windsurf/workshop-order-processing/docs/deployment-profile.md)
 
 Resumen operativo corto:
 
