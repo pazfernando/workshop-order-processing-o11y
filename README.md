@@ -146,6 +146,7 @@ El repositorio incluye dos workflows:
 
 - [ci.yml](/Users/pazfernando/Documents/projects/windsurf/workshop-order-processing/.github/workflows/ci.yml): valida sintaxis JavaScript, empaqueta Lambda y ejecuta `terraform fmt` y `terraform validate`
 - [deploy.yml](/Users/pazfernando/Documents/projects/windsurf/workshop-order-processing/.github/workflows/deploy.yml): despliega automáticamente a AWS cuando hay push a `main`, y permite ejecución manual con `workflow_dispatch`
+- [teardown.yml](/Users/pazfernando/Documents/projects/windsurf/workshop-order-processing/.github/workflows/teardown.yml): destruye manualmente la infraestructura con `terraform destroy` usando el mismo backend remoto
 
 ### Secrets y variables requeridos en GitHub
 
@@ -192,6 +193,12 @@ Y los recursos nombrados quedan con este patrón:
 3. Al hacer merge a `main`, GitHub Actions ejecuta `Deploy`.
 4. El workflow empaqueta la app, ejecuta `terraform init` y luego `terraform apply`.
 5. Al final imprime `api_base_url` desde Terraform.
+
+### Teardown manual
+
+El workflow `Teardown` solo corre por `workflow_dispatch` y exige escribir el `STACK_NAME` exacto como confirmación.
+
+Destruye los recursos Terraform, pero no elimina el bucket S3 del backend ni el objeto del `tfstate`.
 
 ## Permisos IAM mínimos sugeridos para el usuario de despliegue
 
