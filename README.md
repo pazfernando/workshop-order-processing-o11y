@@ -106,137 +106,17 @@ Nota: esta solución usa API Gateway HTTP API. Esa variante no soporta tracing a
 
 ## Variables de despliegue
 
-Lee esta sección en este orden:
+La guía completa de observabilidad, ADOT, OTLP, Collector, variables y casos de despliegue vive en:
 
-1. Variables base del stack
-2. Variables de observabilidad
-3. Variables de alarmas y dashboard
-4. Variables de estado remoto
+- [Observability Deployment Guide](/Users/pazfernando/Documents/projects/windsurf/workshop-order-processing/docs/observability-deployment.md)
 
-### 1. Variables base del stack
+Resumen operativo corto:
 
-| Variable | Valores permitidos | Obligatoria | Significado | Recomendado |
-| :--- | :--- | :--- | :--- | :--- |
-| `STACK_NAME` | cualquier string válido para nombres de recursos AWS | Sí | Nombre lógico del stack | `observability-business-case` |
-| `RESOURCE_PREFIX` | cualquier string válido para prefijo | Sí | Prefijo para separar ambientes o tenants | `aws-dev` |
-| `AWS_REGION` | una región AWS válida | Sí | Región donde se crea la infraestructura | `us-east-1` |
-| `PAYMENT_FAILURE_MODE` | `none`, `always_fail`, `random_fail`, `slow_response`, `random_reject` | Sí | Define cómo se comporta la Lambda `payment-simulator` durante demos y pruebas | `none` |
-| `LOG_RETENTION_IN_DAYS` | número entero positivo | No | Días de retención para CloudWatch Logs | `7` |
-| `METRICS_NAMESPACE` | cualquier string | No | Namespace de métricas EMF mientras siga activa la compatibilidad con CloudWatch Metrics clásico | `Workshop/OrderProcessing` |
-
-### 2. Variables de observabilidad
-
-Primero define **quién inicializa OTel** y luego **a dónde exporta**.
-
-#### 2.1 Quién inicializa OpenTelemetry
-
-| Variable | Valores permitidos | Obligatoria | Significado | Recomendado |
-| :--- | :--- | :--- | :--- | :--- |
-| `OTEL_MODE` | `code`, `adot_layer` | Sí | Decide si el SDK OTel arranca dentro del código de la app o desde un Lambda Layer ADOT | `code` |
-| `ADOT_LAMBDA_LAYER_ARN` | ARN de Lambda Layer o vacío | Solo si `OTEL_MODE=adot_layer` | ARN del layer ADOT que inicializa OTel fuera del código | vacío |
-
-Significado de `OTEL_MODE`:
-
-- `code`: la app usa [otel-bootstrap.js](/Users/pazfernando/Documents/projects/windsurf/workshop-order-processing/src/shared/otel-bootstrap.js:1) para iniciar OTel en proceso.
-- `adot_layer`: Terraform adjunta un Lambda Layer ADOT y define `AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-handler`.
-
-#### 2.2 A dónde exporta OpenTelemetry
-
-| Variable | Valores permitidos | Obligatoria | Significado | Recomendado |
-| :--- | :--- | :--- | :--- | :--- |
-| `OTEL_EXPORT_STRATEGY` | `direct`, `collector` | Sí | Define si las Lambdas envían OTLP directo al backend final o primero a un Collector | `direct` hoy |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | URL OTLP válida o vacío | Solo si `OTEL_EXPORT_STRATEGY=direct` | Endpoint base OTLP del backend final | vacío |
-| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | URL OTLP válida o vacío | No | Override de trazas para modo `direct` | vacío |
-| `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | URL OTLP válida o vacío | No | Override de métricas para modo `direct` | vacío |
-| `OTEL_COLLECTOR_ENDPOINT` | URL OTLP válida o vacío | Solo si `OTEL_EXPORT_STRATEGY=collector` | Endpoint base del Collector | vacío hasta que exista Collector |
-| `OTEL_COLLECTOR_TRACES_ENDPOINT` | URL OTLP válida o vacío | No | Override de trazas para modo `collector` | vacío |
-| `OTEL_COLLECTOR_METRICS_ENDPOINT` | URL OTLP válida o vacío | No | Override de métricas para modo `collector` | vacío |
-
-Significado de `OTEL_EXPORT_STRATEGY`:
-
-- `direct`: la app exporta OTLP directo a CloudWatch OTLP o a un tercero.
-- `collector`: la app exporta OTLP a un Collector, y el Collector decide si reenvía a CloudWatch, Datadog, Grafana, Prometheus u otros.
-
-Reglas prácticas:
-
-- Si usas `direct`, normalmente solo defines `OTEL_EXPORTER_OTLP_ENDPOINT`.
-- Si usas `collector`, normalmente solo defines `OTEL_COLLECTOR_ENDPOINT`.
-- Los endpoints específicos de trazas y métricas se usan solo si necesitas rutas distintas.
-
-#### 2.3 Compatibilidad temporal y tuning
-
-| Variable | Valores permitidos | Obligatoria | Significado | Recomendado |
-| :--- | :--- | :--- | :--- | :--- |
-| `OBSERVABILITY_EMF_COMPATIBILITY_MODE` | `true`, `false` | No | Mantiene emisión EMF en paralelo mientras migras a OTel | `true` |
-| `OTEL_METRIC_EXPORT_INTERVAL_MS` | entero positivo | No | Intervalo de exportación de métricas OTel desde la app | `10000` |
-
-Variables que normalmente no debes tocar a mano:
-
-- `OBSERVABILITY_OTEL_ENABLED`: Terraform la deriva desde `OTEL_MODE`.
-- `OTEL_SERVICE_NAME`: Terraform la define por Lambda.
-
-### 3. Variables de alarmas y dashboard
-
-| Variable | Valores permitidos | Obligatoria | Significado | Recomendado |
-| :--- | :--- | :--- | :--- | :--- |
-| `CREATE_OBSERVABILITY_DASHBOARD` | `true`, `false` | No | Crea el dashboard de CloudWatch | `true` |
-| `CREATE_OBSERVABILITY_ALARMS` | `true`, `false` | No | Crea alarmas base de operación | `true` |
-| `API_5XX_ALARM_THRESHOLD` | número entero no negativo | No | Umbral por minuto para respuestas 5xx del API | `1` |
-| `ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD` | número entero no negativo | No | Umbral por minuto para errores del `order-processor` | `1` |
-| `PAYMENT_LATENCY_ALARM_THRESHOLD_MS` | número entero no negativo | No | Umbral promedio de latencia del simulador de pago | `3000` |
-
-### 4. Variables de estado remoto de Terraform
-
-| Variable | Valores permitidos | Obligatoria | Significado | Recomendado |
-| :--- | :--- | :--- | :--- | :--- |
-| `TF_STATE_BUCKET` | nombre de bucket S3 o vacío | No | Bucket del backend remoto de Terraform | vacío si el workflow lo crea |
-| `TF_STATE_KEY` | path/key de S3 o vacío | No | Key del estado remoto | `${environment}/${STACK_NAME}.tfstate` |
-
-### Configuraciones recomendadas por caso
-
-#### Caso A: valor por defecto operativo del repo
-
-Usa este caso si todavía no tienes Collector ni backend OTLP confirmado.
-
-| Variable | Valor |
-| :--- | :--- |
-| `OTEL_MODE` | `code` |
-| `OTEL_EXPORT_STRATEGY` | `direct` |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | vacío o endpoint directo si ya existe |
-| `OBSERVABILITY_EMF_COMPATIBILITY_MODE` | `true` |
-
-#### Caso B: exportación directa a backend OTLP
-
-Usa este caso si enviarás OTel directo a CloudWatch OTLP o a un vendor.
-
-| Variable | Valor |
-| :--- | :--- |
-| `OTEL_MODE` | `code` |
-| `OTEL_EXPORT_STRATEGY` | `direct` |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | `https://...` |
-| `OBSERVABILITY_EMF_COMPATIBILITY_MODE` | `true` |
-
-#### Caso C: arquitectura objetivo con Collector
-
-Usa este caso solo cuando ya existe un Collector accesible desde las Lambdas.
-
-| Variable | Valor |
-| :--- | :--- |
-| `OTEL_MODE` | `code` |
-| `OTEL_EXPORT_STRATEGY` | `collector` |
-| `OTEL_COLLECTOR_ENDPOINT` | `http://collector.internal:4318` |
-| `OBSERVABILITY_EMF_COMPATIBILITY_MODE` | `true` |
-
-#### Caso D: ADOT Layer + Collector
-
-Usa este caso cuando quieras que el bootstrap de OTel quede fuera del código.
-
-| Variable | Valor |
-| :--- | :--- |
-| `OTEL_MODE` | `adot_layer` |
-| `ADOT_LAMBDA_LAYER_ARN` | `arn:aws:lambda:...:layer:...` |
-| `OTEL_EXPORT_STRATEGY` | `collector` |
-| `OTEL_COLLECTOR_ENDPOINT` | `http://collector.internal:4318` |
+- Default del repo hoy: `OTEL_MODE=code` y `OTEL_EXPORT_STRATEGY=direct`
+- Arquitectura objetivo: `OTEL_MODE=code` y `OTEL_EXPORT_STRATEGY=collector`
+- Si usas `adot_layer`, debes definir `ADOT_LAMBDA_LAYER_ARN`
+- Si usas `collector`, debes definir `OTEL_COLLECTOR_ENDPOINT`
+- Si usas `direct`, normalmente defines `OTEL_EXPORTER_OTLP_ENDPOINT`
 
 ## Despliegue local
 
