@@ -38,7 +38,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
       - name: Setup AWS SAM
         uses: aws-actions/setup-sam@v2
@@ -63,4 +62,3 @@ jobs:
             --region "$AWS_REGION" \
             --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" \
             --output text
-

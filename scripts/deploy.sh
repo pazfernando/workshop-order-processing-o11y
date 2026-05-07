@@ -6,7 +6,10 @@ STACK_NAME="${STACK_NAME:-observability-business-case}"
 AWS_REGION="${AWS_REGION:-us-east-1}"
 PAYMENT_FAILURE_MODE="${PAYMENT_FAILURE_MODE:-none}"
 
-npm install
+if [ ! -d node_modules ]; then
+  npm install
+fi
+
 sam build
 sam deploy \
   --stack-name "$STACK_NAME" \
