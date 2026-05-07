@@ -21,8 +21,10 @@ jobs:
         with:
           node-version: 20
 
-      - name: Setup AWS SAM
-        uses: aws-actions/setup-sam@v2
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
 
       - name: Install dependencies
         run: npm install
@@ -30,8 +32,14 @@ jobs:
       - name: Check JavaScript syntax
         run: npm run check
 
-      - name: Validate SAM template
-        run: sam validate
+      - name: Prepare Lambda bundle
+        run: bash scripts/prepare-lambda-package.sh
 
-      - name: Build SAM application
-        run: sam build
+      - name: Check Terraform formatting
+        run: terraform -chdir=infra/terraform fmt -check -recursive
+
+      - name: Initialize Terraform
+        run: terraform -chdir=infra/terraform init -backend=false
+
+      - name: Validate Terraform configuration
+        run: terraform -chdir=infra/terraform validate
