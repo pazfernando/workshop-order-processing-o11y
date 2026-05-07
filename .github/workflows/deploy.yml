@@ -26,6 +26,7 @@ jobs:
       contents: read
 
     env:
+      ENVIRONMENT_NAME: aws-dev
       AWS_REGION: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'us-east-1' }}
       STACK_NAME: ${{ vars.STACK_NAME != '' && vars.STACK_NAME || 'observability-business-case' }}
       PAYMENT_FAILURE_MODE: ${{ inputs.payment_failure_mode != '' && inputs.payment_failure_mode || vars.PAYMENT_FAILURE_MODE || 'none' }}
@@ -60,12 +61,51 @@ jobs:
       - name: Prepare Lambda bundle
         run: bash scripts/prepare-lambda-package.sh
 
+      - name: Ensure Terraform state bucket
+        run: |
+          ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+          PROJECT_SLUG="$(printf '%s' "$STACK_NAME" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9-' '-')"
+          PROJECT_SLUG="${PROJECT_SLUG#-}"
+          PROJECT_SLUG="${PROJECT_SLUG%-}"
+
+          if [ -n "$TF_STATE_BUCKET" ]; then
+            BUCKET_NAME="$TF_STATE_BUCKET"
+          else
+            BUCKET_NAME="${PROJECT_SLUG}-${ACCOUNT_ID}-${AWS_REGION}-tfstate"
+          fi
+
+          STATE_KEY="${TF_STATE_KEY:-${ENVIRONMENT_NAME}/${STACK_NAME}.tfstate}"
+
+          if aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
+            echo "Using existing Terraform state bucket: $BUCKET_NAME"
+          else
+            if [ "$AWS_REGION" = "us-east-1" ]; then
+              aws s3api create-bucket --bucket "$BUCKET_NAME"
+            else
+              aws s3api create-bucket \
+                --bucket "$BUCKET_NAME" \
+                --create-bucket-configuration "LocationConstraint=${AWS_REGION}"
+            fi
+
+            aws s3api put-bucket-versioning \
+              --bucket "$BUCKET_NAME" \
+              --versioning-configuration Status=Enabled
+
+            aws s3api put-bucket-encryption \
+              --bucket "$BUCKET_NAME" \
+              --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+          fi
+
+          {
+            echo "TF_STATE_BUCKET=$BUCKET_NAME"
+            echo "TF_STATE_KEY=$STATE_KEY"
+          } >> "$GITHUB_ENV"
+
       - name: Initialize Terraform
         run: |
-          test -n "$TF_STATE_BUCKET"
           terraform -chdir=infra/terraform init -reconfigure \
             -backend-config="bucket=${TF_STATE_BUCKET}" \
-            -backend-config="key=${TF_STATE_KEY:-${STACK_NAME}.tfstate}" \
+            -backend-config="key=${TF_STATE_KEY}" \
             -backend-config="region=${AWS_REGION}"
 
       - name: Deploy stack

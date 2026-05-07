@@ -44,8 +44,8 @@ Caso base para talleres técnicos senior sobre arquitectura serverless, resilien
 - `STACK_NAME`: prefijo para los recursos AWS. Default: `observability-business-case`
 - `AWS_REGION`: región de despliegue. Default: `us-east-1`
 - `PAYMENT_FAILURE_MODE`: `none`, `always_fail`, `random_fail`, `slow_response`, `random_reject`
-- `TF_STATE_BUCKET`: bucket S3 para estado remoto de Terraform en CI/CD
-- `TF_STATE_KEY`: key del estado en S3. Default: `${STACK_NAME}.tfstate`
+- `TF_STATE_BUCKET`: opcional. Si no se define en GitHub Actions, el workflow crea uno automáticamente
+- `TF_STATE_KEY`: opcional. Default en CI/CD: `${environment}/${STACK_NAME}.tfstate`
 
 ## Despliegue local
 
@@ -156,14 +156,23 @@ Variables:
 - `AWS_REGION`
 - `STACK_NAME`
 - `PAYMENT_FAILURE_MODE`
-- `TF_STATE_BUCKET`
 - `TF_STATE_KEY` opcional
 
 ### Backend remoto de Terraform en GitHub Actions
 
-En GitHub Actions el backend remoto no es opcional. El runner es efímero, así que sin `TF_STATE_BUCKET` el estado se perdería al terminar el job y el siguiente deploy intentaría recrear infraestructura ya existente.
+En GitHub Actions el backend remoto no es opcional. El runner es efímero, así que el workflow asegura un bucket S3 para el estado antes de ejecutar `terraform init`.
 
-Antes de usar el workflow `Deploy`, crea un bucket S3 para el estado de Terraform y configura su nombre en `TF_STATE_BUCKET`.
+Si `TF_STATE_BUCKET` no está definido, el workflow crea uno automáticamente en la cuenta destino con este patrón:
+
+- `${stack_name}-${account_id}-${aws_region}-tfstate`
+
+Luego usa una key por environment:
+
+- `${environment}/${STACK_NAME}.tfstate`
+
+En este repositorio, para el environment `aws-dev`, la key por defecto queda:
+
+- `aws-dev/observability-business-case.tfstate`
 
 ### Flujo de despliegue
 
