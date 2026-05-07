@@ -11,7 +11,7 @@
     "test:smoke": "bash scripts/create-order.sh"
   },
   "dependencies": {
-    "@aws/aws-distro-opentelemetry-node-autoinstrumentation": "^0.14.0",
+    "@aws/aws-distro-opentelemetry-node-autoinstrumentation": "^0.7.0",
     "@aws-sdk/client-dynamodb": "^3.775.0",
     "@aws-sdk/client-eventbridge": "^3.775.0",
     "@aws-sdk/client-lambda": "^3.775.0",
