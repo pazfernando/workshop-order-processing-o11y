@@ -31,3 +31,18 @@ output "observability_alarm_names" {
     try(aws_cloudwatch_metric_alarm.payment_latency[0].alarm_name, null)
   ])
 }
+
+output "effective_otlp_base_endpoint" {
+  description = "Effective OTLP base endpoint configured for the Lambda functions."
+  value       = local.effective_otlp_endpoint
+}
+
+output "effective_otlp_traces_endpoint" {
+  description = "Effective OTLP traces endpoint configured for the Lambda functions."
+  value       = local.effective_otlp_traces_endpoint
+}
+
+output "effective_otlp_metrics_endpoint" {
+  description = "Effective OTLP metrics endpoint configured for the Lambda functions."
+  value       = local.effective_otlp_metrics_endpoint
+}

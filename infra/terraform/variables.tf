@@ -73,6 +73,35 @@ variable "otel_exporter_otlp_endpoint" {
   default     = ""
 }
 
+variable "otel_export_strategy" {
+  description = "OTLP routing strategy. Use 'direct' to export straight to a backend endpoint, or 'collector' to route first through an OpenTelemetry Collector."
+  type        = string
+  default     = "collector"
+
+  validation {
+    condition     = contains(["direct", "collector"], var.otel_export_strategy)
+    error_message = "otel_export_strategy must be one of: direct, collector."
+  }
+}
+
+variable "otel_collector_endpoint" {
+  description = "Optional base OTLP endpoint for the collector gateway, for example http://collector.internal:4318."
+  type        = string
+  default     = ""
+}
+
+variable "otel_collector_traces_endpoint" {
+  description = "Optional OTLP traces endpoint override for the collector gateway."
+  type        = string
+  default     = ""
+}
+
+variable "otel_collector_metrics_endpoint" {
+  description = "Optional OTLP metrics endpoint override for the collector gateway."
+  type        = string
+  default     = ""
+}
+
 variable "otel_exporter_otlp_traces_endpoint" {
   description = "Optional OTLP traces endpoint override."
   type        = string

@@ -46,20 +46,28 @@ locals {
     payment_simulator = "/aws/lambda/${local.payment_simulator_function_name}"
     order_processor   = "/aws/lambda/${local.order_processor_function_name}"
   }
-  event_bus_arn          = "arn:${data.aws_partition.current.partition}:events:${var.aws_region}:${data.aws_caller_identity.current.account_id}:event-bus/default"
-  deployment_environment = local.normalized_resource_prefix != "" ? local.normalized_resource_prefix : "local"
+  event_bus_arn           = "arn:${data.aws_partition.current.partition}:events:${var.aws_region}:${data.aws_caller_identity.current.account_id}:event-bus/default"
+  deployment_environment  = local.normalized_resource_prefix != "" ? local.normalized_resource_prefix : "local"
+  effective_otlp_endpoint = var.otel_export_strategy == "collector" ? var.otel_collector_endpoint : var.otel_exporter_otlp_endpoint
+  effective_otlp_traces_endpoint = var.otel_export_strategy == "collector" ? (
+    var.otel_collector_traces_endpoint != "" ? var.otel_collector_traces_endpoint : var.otel_collector_endpoint
+  ) : var.otel_exporter_otlp_traces_endpoint
+  effective_otlp_metrics_endpoint = var.otel_export_strategy == "collector" ? (
+    var.otel_collector_metrics_endpoint != "" ? var.otel_collector_metrics_endpoint : var.otel_collector_endpoint
+  ) : var.otel_exporter_otlp_metrics_endpoint
   otel_common_env = {
     OBSERVABILITY_OTEL_ENABLED           = var.otel_mode == "code" ? "true" : "false"
     OBSERVABILITY_EMF_COMPATIBILITY_MODE = var.observability_emf_compatibility_mode ? "true" : "false"
-    OTEL_EXPORTER_OTLP_ENDPOINT          = var.otel_exporter_otlp_endpoint
-    OTEL_EXPORTER_OTLP_TRACES_ENDPOINT   = var.otel_exporter_otlp_traces_endpoint
-    OTEL_EXPORTER_OTLP_METRICS_ENDPOINT  = var.otel_exporter_otlp_metrics_endpoint
+    OTEL_EXPORTER_OTLP_ENDPOINT          = local.effective_otlp_endpoint
+    OTEL_EXPORTER_OTLP_TRACES_ENDPOINT   = local.effective_otlp_traces_endpoint
+    OTEL_EXPORTER_OTLP_METRICS_ENDPOINT  = local.effective_otlp_metrics_endpoint
     OTEL_METRIC_EXPORT_INTERVAL_MS       = tostring(var.otel_metric_export_interval_ms)
     OTEL_TRACES_EXPORTER                 = "otlp"
     OTEL_METRICS_EXPORTER                = "otlp"
     OTEL_EXPORTER_OTLP_PROTOCOL          = "http/protobuf"
     OTEL_PROPAGATORS                     = "tracecontext,baggage,xray"
     OTEL_RESOURCE_ATTRIBUTES             = "deployment.environment=${local.deployment_environment}"
+    OTEL_EXPORT_STRATEGY                 = var.otel_export_strategy
   }
   lambda_wrapper_env = var.otel_mode == "adot_layer" ? {
     AWS_LAMBDA_EXEC_WRAPPER = "/opt/otel-handler"

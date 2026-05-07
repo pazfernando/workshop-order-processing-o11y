@@ -1,0 +1,77 @@
+extensions:
+  health_check:
+  sigv4auth/cloudwatch:
+    region: ${env:AWS_REGION}
+    service: monitoring
+  sigv4auth/xray:
+    region: ${env:AWS_REGION}
+    service: xray
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+  batch:
+    send_batch_size: 1000
+    timeout: 10s
+  filter/health:
+    metrics:
+      datapoint:
+        - 'attributes["http.route"] == "/health"'
+  attributes/sanitize:
+    actions:
+      - key: user_id
+        action: delete
+      - key: session_id
+        action: delete
+      - key: authorization
+        action: delete
+  tail_sampling:
+    decision_wait: 10s
+    num_traces: 10000
+    expected_new_traces_per_sec: 100
+    policies:
+      - name: errors
+        type: status_code
+        status_code:
+          status_codes: [ERROR]
+      - name: slow-traces
+        type: latency
+        latency:
+          threshold_ms: 2000
+      - name: baseline
+        type: probabilistic
+        probabilistic:
+          sampling_percentage: 10
+
+exporters:
+  otlphttp/cloudwatch-metrics:
+    endpoint: https://metrics.${env:AWS_REGION}.amazonaws.com/v1/metrics
+    auth:
+      authenticator: sigv4auth/cloudwatch
+  otlphttp/cloudwatch-traces:
+    endpoint: https://xray.${env:AWS_REGION}.amazonaws.com/v1/traces
+    auth:
+      authenticator: sigv4auth/xray
+  debug:
+    verbosity: basic
+
+service:
+  extensions: [health_check, sigv4auth/cloudwatch, sigv4auth/xray]
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, filter/health, attributes/sanitize, batch]
+      exporters: [otlphttp/cloudwatch-metrics]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, attributes/sanitize, tail_sampling, batch]
+      exporters: [otlphttp/cloudwatch-traces]

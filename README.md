@@ -35,11 +35,37 @@ flowchart LR
     payment -. logs JSON, EMF y X-Ray .-> obs
 ```
 
+### Arquitectura objetivo OTLP con Collector
+
+```mermaid
+flowchart LR
+    user["Cliente o sistema consumidor"] --> api["API Gateway HTTP API"]
+    api --> create["Lambda create-order"]
+    api --> get["Lambda get-order"]
+
+    create --> ddb["DynamoDB orders"]
+    create --> eb["EventBridge default bus"]
+    eb --> processor["Lambda order-processor"]
+    processor --> payment["Lambda payment-simulator"]
+    processor --> ddb
+
+    create -. OTLP .-> collector["OTel Collector Gateway"]
+    get -. OTLP .-> collector
+    processor -. OTLP .-> collector
+    payment -. OTLP .-> collector
+
+    collector --> cw["CloudWatch OTLP endpoints"]
+    collector --> vendor["Datadog / Grafana / Prometheus compatible backend"]
+
+    api -. access logs y métricas nativas .-> cw
+```
+
 ## Observabilidad implementada
 
 - Correlación end-to-end con `x-correlation-id`, `requestId`, `awsRequestId` y `orderId`.
 - Propagación de `correlationId` desde `POST /orders` hacia EventBridge, `order-processor` y `payment-simulator`.
 - Base de instrumentación OpenTelemetry en código, compatible con ADOT Lambda layer y con exporters OTLP cuando se configuren.
+- Estrategia recomendada de salida OTLP: `Collector primero`, para desacoplar la instrumentación del backend final.
 - Logs JSON consistentes por servicio con contexto reutilizable.
 - Métricas EMF para creación de órdenes, lecturas, órdenes procesadas, errores y latencia del simulador de pago.
 - Retención explícita de CloudWatch Logs configurable desde Terraform.
@@ -87,6 +113,10 @@ Nota: esta solución usa API Gateway HTTP API. Esa variante no soporta tracing a
 - `LOG_RETENTION_IN_DAYS`: retención de logs en CloudWatch. Default Terraform: `7`
 - `METRICS_NAMESPACE`: namespace de métricas EMF. Default Terraform: `Workshop/OrderProcessing`
 - `OTEL_MODE`: `code` para bootstrap en proceso o `adot_layer` para usar un ADOT Lambda layer. Default Terraform: `code`
+- `OTEL_EXPORT_STRATEGY`: `collector` para enrutar primero a un OTel Collector o `direct` para enviar OTLP directo al backend. Default Terraform: `collector`
+- `OTEL_COLLECTOR_ENDPOINT`: endpoint base OTLP del Collector, por ejemplo `http://collector.internal:4318`
+- `OTEL_COLLECTOR_TRACES_ENDPOINT`: override opcional del endpoint de trazas del Collector
+- `OTEL_COLLECTOR_METRICS_ENDPOINT`: override opcional del endpoint de métricas del Collector
 - `ADOT_LAMBDA_LAYER_ARN`: ARN del layer ADOT. Requerido cuando `OTEL_MODE=adot_layer`
 - `OBSERVABILITY_OTEL_ENABLED`: habilita bootstrap OTel en código cuando no se usa un layer externo. Default implícito: `true`
 - `OBSERVABILITY_EMF_COMPATIBILITY_MODE`: mantiene emisión EMF en paralelo para CloudWatch mientras conviven ambos enfoques. Default implícito: `true`
@@ -131,6 +161,10 @@ export PAYMENT_FAILURE_MODE="none"
 export LOG_RETENTION_IN_DAYS="7"
 export METRICS_NAMESPACE="Workshop/OrderProcessing"
 export OTEL_MODE="code"
+export OTEL_EXPORT_STRATEGY="collector"
+export OTEL_COLLECTOR_ENDPOINT="http://collector.internal:4318"
+export OTEL_COLLECTOR_TRACES_ENDPOINT=""
+export OTEL_COLLECTOR_METRICS_ENDPOINT=""
 export ADOT_LAMBDA_LAYER_ARN=""
 export OTEL_EXPORTER_OTLP_ENDPOINT=""
 export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=""
@@ -186,6 +220,10 @@ terraform -chdir=infra/terraform apply \
   -var="log_retention_in_days=${LOG_RETENTION_IN_DAYS}" \
   -var="metrics_namespace=${METRICS_NAMESPACE}" \
   -var="otel_mode=${OTEL_MODE}" \
+  -var="otel_export_strategy=${OTEL_EXPORT_STRATEGY}" \
+  -var="otel_collector_endpoint=${OTEL_COLLECTOR_ENDPOINT}" \
+  -var="otel_collector_traces_endpoint=${OTEL_COLLECTOR_TRACES_ENDPOINT}" \
+  -var="otel_collector_metrics_endpoint=${OTEL_COLLECTOR_METRICS_ENDPOINT}" \
   -var="adot_lambda_layer_arn=${ADOT_LAMBDA_LAYER_ARN}" \
   -var="otel_exporter_otlp_endpoint=${OTEL_EXPORTER_OTLP_ENDPOINT}" \
   -var="otel_exporter_otlp_traces_endpoint=${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT}" \
@@ -224,6 +262,10 @@ terraform -chdir=infra/terraform destroy \
   -var="log_retention_in_days=${LOG_RETENTION_IN_DAYS}" \
   -var="metrics_namespace=${METRICS_NAMESPACE}" \
   -var="otel_mode=${OTEL_MODE}" \
+  -var="otel_export_strategy=${OTEL_EXPORT_STRATEGY}" \
+  -var="otel_collector_endpoint=${OTEL_COLLECTOR_ENDPOINT}" \
+  -var="otel_collector_traces_endpoint=${OTEL_COLLECTOR_TRACES_ENDPOINT}" \
+  -var="otel_collector_metrics_endpoint=${OTEL_COLLECTOR_METRICS_ENDPOINT}" \
   -var="adot_lambda_layer_arn=${ADOT_LAMBDA_LAYER_ARN}" \
   -var="otel_exporter_otlp_endpoint=${OTEL_EXPORTER_OTLP_ENDPOINT}" \
   -var="otel_exporter_otlp_traces_endpoint=${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT}" \
@@ -262,6 +304,10 @@ Variables:
 - `LOG_RETENTION_IN_DAYS` opcional
 - `METRICS_NAMESPACE` opcional
 - `OTEL_MODE` opcional
+- `OTEL_EXPORT_STRATEGY` opcional
+- `OTEL_COLLECTOR_ENDPOINT` opcional salvo que `OTEL_EXPORT_STRATEGY=collector`
+- `OTEL_COLLECTOR_TRACES_ENDPOINT` opcional
+- `OTEL_COLLECTOR_METRICS_ENDPOINT` opcional
 - `ADOT_LAMBDA_LAYER_ARN` opcional salvo que `OTEL_MODE=adot_layer`
 - `OTEL_EXPORTER_OTLP_ENDPOINT` opcional
 - `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` opcional
@@ -304,6 +350,38 @@ Y los recursos nombrados quedan con este patrón:
 3. Al hacer merge a `main`, GitHub Actions ejecuta `Deploy`.
 4. El workflow empaqueta la app, ejecuta `terraform init` y luego `terraform apply`.
 5. Al final imprime `api_base_url` desde Terraform.
+
+## Collector recomendado
+
+El repositorio incluye dos configuraciones de referencia para el Collector en [infra/otel-collector](/Users/pazfernando/Documents/projects/windsurf/workshop-order-processing/infra/otel-collector):
+
+- [collector-cloudwatch.yaml](/Users/pazfernando/Documents/projects/windsurf/workshop-order-processing/infra/otel-collector/collector-cloudwatch.yaml): enruta métricas y trazas OTLP hacia CloudWatch
+- [collector-cloudwatch-third-party.yaml](/Users/pazfernando/Documents/projects/windsurf/workshop-order-processing/infra/otel-collector/collector-cloudwatch-third-party.yaml): fan-out a CloudWatch y a un backend OTLP adicional
+
+Estas configuraciones aplican:
+
+- `memory_limiter` y `batch` para proteger el Collector
+- `filter/health` para sacar tráfico sanitario
+- `attributes/sanitize` para eliminar atributos de alta cardinalidad o sensibles
+- `tail_sampling` para priorizar errores y trazas lentas antes de exportar a CloudWatch o terceros
+
+Ejemplo de despliegue apuntando al Collector:
+
+```bash
+export OTEL_EXPORT_STRATEGY="collector"
+export OTEL_COLLECTOR_ENDPOINT="http://collector.internal:4318"
+terraform -chdir=infra/terraform apply \
+  -var="aws_region=${AWS_REGION}" \
+  -var="stack_name=${STACK_NAME}" \
+  -var="resource_prefix=${RESOURCE_PREFIX}" \
+  -var="payment_failure_mode=${PAYMENT_FAILURE_MODE}" \
+  -var="log_retention_in_days=${LOG_RETENTION_IN_DAYS}" \
+  -var="metrics_namespace=${METRICS_NAMESPACE}" \
+  -var="otel_mode=${OTEL_MODE}" \
+  -var="otel_export_strategy=${OTEL_EXPORT_STRATEGY}" \
+  -var="otel_collector_endpoint=${OTEL_COLLECTOR_ENDPOINT}" \
+  -var="observability_emf_compatibility_mode=${OBSERVABILITY_EMF_COMPATIBILITY_MODE}"
+```
 
 ### Teardown manual
 
