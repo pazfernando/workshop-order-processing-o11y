@@ -86,6 +86,8 @@ Nota: esta solución usa API Gateway HTTP API. Esa variante no soporta tracing a
 - `PAYMENT_FAILURE_MODE`: `none`, `always_fail`, `random_fail`, `slow_response`, `random_reject`
 - `LOG_RETENTION_IN_DAYS`: retención de logs en CloudWatch. Default Terraform: `7`
 - `METRICS_NAMESPACE`: namespace de métricas EMF. Default Terraform: `Workshop/OrderProcessing`
+- `OTEL_MODE`: `code` para bootstrap en proceso o `adot_layer` para usar un ADOT Lambda layer. Default Terraform: `code`
+- `ADOT_LAMBDA_LAYER_ARN`: ARN del layer ADOT. Requerido cuando `OTEL_MODE=adot_layer`
 - `OBSERVABILITY_OTEL_ENABLED`: habilita bootstrap OTel en código cuando no se usa un layer externo. Default implícito: `true`
 - `OBSERVABILITY_EMF_COMPATIBILITY_MODE`: mantiene emisión EMF en paralelo para CloudWatch mientras conviven ambos enfoques. Default implícito: `true`
 - `OTEL_SERVICE_NAME`: override opcional del `service.name` de OpenTelemetry
@@ -128,6 +130,13 @@ export AWS_REGION="us-east-1"
 export PAYMENT_FAILURE_MODE="none"
 export LOG_RETENTION_IN_DAYS="7"
 export METRICS_NAMESPACE="Workshop/OrderProcessing"
+export OTEL_MODE="code"
+export ADOT_LAMBDA_LAYER_ARN=""
+export OTEL_EXPORTER_OTLP_ENDPOINT=""
+export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=""
+export OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=""
+export OTEL_METRIC_EXPORT_INTERVAL_MS="10000"
+export OBSERVABILITY_EMF_COMPATIBILITY_MODE="true"
 export CREATE_OBSERVABILITY_DASHBOARD="true"
 export CREATE_OBSERVABILITY_ALARMS="true"
 export API_5XX_ALARM_THRESHOLD="1"
@@ -176,6 +185,13 @@ terraform -chdir=infra/terraform apply \
   -var="payment_failure_mode=${PAYMENT_FAILURE_MODE}" \
   -var="log_retention_in_days=${LOG_RETENTION_IN_DAYS}" \
   -var="metrics_namespace=${METRICS_NAMESPACE}" \
+  -var="otel_mode=${OTEL_MODE}" \
+  -var="adot_lambda_layer_arn=${ADOT_LAMBDA_LAYER_ARN}" \
+  -var="otel_exporter_otlp_endpoint=${OTEL_EXPORTER_OTLP_ENDPOINT}" \
+  -var="otel_exporter_otlp_traces_endpoint=${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT}" \
+  -var="otel_exporter_otlp_metrics_endpoint=${OTEL_EXPORTER_OTLP_METRICS_ENDPOINT}" \
+  -var="otel_metric_export_interval_ms=${OTEL_METRIC_EXPORT_INTERVAL_MS}" \
+  -var="observability_emf_compatibility_mode=${OBSERVABILITY_EMF_COMPATIBILITY_MODE}" \
   -var="create_observability_dashboard=${CREATE_OBSERVABILITY_DASHBOARD}" \
   -var="create_observability_alarms=${CREATE_OBSERVABILITY_ALARMS}" \
   -var="api_5xx_alarm_threshold=${API_5XX_ALARM_THRESHOLD}" \
@@ -207,6 +223,13 @@ terraform -chdir=infra/terraform destroy \
   -var="payment_failure_mode=${PAYMENT_FAILURE_MODE}" \
   -var="log_retention_in_days=${LOG_RETENTION_IN_DAYS}" \
   -var="metrics_namespace=${METRICS_NAMESPACE}" \
+  -var="otel_mode=${OTEL_MODE}" \
+  -var="adot_lambda_layer_arn=${ADOT_LAMBDA_LAYER_ARN}" \
+  -var="otel_exporter_otlp_endpoint=${OTEL_EXPORTER_OTLP_ENDPOINT}" \
+  -var="otel_exporter_otlp_traces_endpoint=${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT}" \
+  -var="otel_exporter_otlp_metrics_endpoint=${OTEL_EXPORTER_OTLP_METRICS_ENDPOINT}" \
+  -var="otel_metric_export_interval_ms=${OTEL_METRIC_EXPORT_INTERVAL_MS}" \
+  -var="observability_emf_compatibility_mode=${OBSERVABILITY_EMF_COMPATIBILITY_MODE}" \
   -var="create_observability_dashboard=${CREATE_OBSERVABILITY_DASHBOARD}" \
   -var="create_observability_alarms=${CREATE_OBSERVABILITY_ALARMS}" \
   -var="api_5xx_alarm_threshold=${API_5XX_ALARM_THRESHOLD}" \
@@ -238,6 +261,13 @@ Variables:
 - `PAYMENT_FAILURE_MODE`
 - `LOG_RETENTION_IN_DAYS` opcional
 - `METRICS_NAMESPACE` opcional
+- `OTEL_MODE` opcional
+- `ADOT_LAMBDA_LAYER_ARN` opcional salvo que `OTEL_MODE=adot_layer`
+- `OTEL_EXPORTER_OTLP_ENDPOINT` opcional
+- `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` opcional
+- `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` opcional
+- `OTEL_METRIC_EXPORT_INTERVAL_MS` opcional
+- `OBSERVABILITY_EMF_COMPATIBILITY_MODE` opcional
 - `CREATE_OBSERVABILITY_DASHBOARD` opcional
 - `CREATE_OBSERVABILITY_ALARMS` opcional
 - `API_5XX_ALARM_THRESHOLD` opcional

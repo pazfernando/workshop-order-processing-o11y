@@ -46,7 +46,25 @@ locals {
     payment_simulator = "/aws/lambda/${local.payment_simulator_function_name}"
     order_processor   = "/aws/lambda/${local.order_processor_function_name}"
   }
-  event_bus_arn = "arn:${data.aws_partition.current.partition}:events:${var.aws_region}:${data.aws_caller_identity.current.account_id}:event-bus/default"
+  event_bus_arn          = "arn:${data.aws_partition.current.partition}:events:${var.aws_region}:${data.aws_caller_identity.current.account_id}:event-bus/default"
+  deployment_environment = local.normalized_resource_prefix != "" ? local.normalized_resource_prefix : "local"
+  otel_common_env = {
+    OBSERVABILITY_OTEL_ENABLED           = var.otel_mode == "code" ? "true" : "false"
+    OBSERVABILITY_EMF_COMPATIBILITY_MODE = var.observability_emf_compatibility_mode ? "true" : "false"
+    OTEL_EXPORTER_OTLP_ENDPOINT          = var.otel_exporter_otlp_endpoint
+    OTEL_EXPORTER_OTLP_TRACES_ENDPOINT   = var.otel_exporter_otlp_traces_endpoint
+    OTEL_EXPORTER_OTLP_METRICS_ENDPOINT  = var.otel_exporter_otlp_metrics_endpoint
+    OTEL_METRIC_EXPORT_INTERVAL_MS       = tostring(var.otel_metric_export_interval_ms)
+    OTEL_TRACES_EXPORTER                 = "otlp"
+    OTEL_METRICS_EXPORTER                = "otlp"
+    OTEL_EXPORTER_OTLP_PROTOCOL          = "http/protobuf"
+    OTEL_PROPAGATORS                     = "tracecontext,baggage,xray"
+    OTEL_RESOURCE_ATTRIBUTES             = "deployment.environment=${local.deployment_environment}"
+  }
+  lambda_wrapper_env = var.otel_mode == "adot_layer" ? {
+    AWS_LAMBDA_EXEC_WRAPPER = "/opt/otel-handler"
+  } : {}
+  adot_layer_arns = var.otel_mode == "adot_layer" ? [var.adot_lambda_layer_arn] : []
 }
 
 resource "aws_dynamodb_table" "orders" {
@@ -253,14 +271,21 @@ resource "aws_lambda_function" "create_order" {
     mode = "Active"
   }
 
+  layers = local.adot_layer_arns
+
   environment {
-    variables = {
-      ORDERS_TABLE_NAME = aws_dynamodb_table.orders.name
-      EVENT_BUS_NAME    = "default"
-      LOG_LEVEL         = "INFO"
-      METRICS_NAMESPACE = var.metrics_namespace
-      SERVICE_NAME      = "order-api"
-    }
+    variables = merge(
+      {
+        ORDERS_TABLE_NAME = aws_dynamodb_table.orders.name
+        EVENT_BUS_NAME    = "default"
+        LOG_LEVEL         = "INFO"
+        METRICS_NAMESPACE = var.metrics_namespace
+        SERVICE_NAME      = "order-api"
+        OTEL_SERVICE_NAME = "order-api"
+      },
+      local.otel_common_env,
+      local.lambda_wrapper_env
+    )
   }
 
   depends_on = [
@@ -284,14 +309,21 @@ resource "aws_lambda_function" "get_order" {
     mode = "Active"
   }
 
+  layers = local.adot_layer_arns
+
   environment {
-    variables = {
-      ORDERS_TABLE_NAME = aws_dynamodb_table.orders.name
-      EVENT_BUS_NAME    = "default"
-      LOG_LEVEL         = "INFO"
-      METRICS_NAMESPACE = var.metrics_namespace
-      SERVICE_NAME      = "order-api"
-    }
+    variables = merge(
+      {
+        ORDERS_TABLE_NAME = aws_dynamodb_table.orders.name
+        EVENT_BUS_NAME    = "default"
+        LOG_LEVEL         = "INFO"
+        METRICS_NAMESPACE = var.metrics_namespace
+        SERVICE_NAME      = "order-api"
+        OTEL_SERVICE_NAME = "order-api"
+      },
+      local.otel_common_env,
+      local.lambda_wrapper_env
+    )
   }
 
   depends_on = [
@@ -315,15 +347,22 @@ resource "aws_lambda_function" "payment_simulator" {
     mode = "Active"
   }
 
+  layers = local.adot_layer_arns
+
   environment {
-    variables = {
-      ORDERS_TABLE_NAME    = aws_dynamodb_table.orders.name
-      EVENT_BUS_NAME       = "default"
-      LOG_LEVEL            = "INFO"
-      METRICS_NAMESPACE    = var.metrics_namespace
-      PAYMENT_FAILURE_MODE = var.payment_failure_mode
-      SERVICE_NAME         = "payment-simulator"
-    }
+    variables = merge(
+      {
+        ORDERS_TABLE_NAME    = aws_dynamodb_table.orders.name
+        EVENT_BUS_NAME       = "default"
+        LOG_LEVEL            = "INFO"
+        METRICS_NAMESPACE    = var.metrics_namespace
+        PAYMENT_FAILURE_MODE = var.payment_failure_mode
+        SERVICE_NAME         = "payment-simulator"
+        OTEL_SERVICE_NAME    = "payment-simulator"
+      },
+      local.otel_common_env,
+      local.lambda_wrapper_env
+    )
   }
 
   depends_on = [
@@ -347,15 +386,22 @@ resource "aws_lambda_function" "order_processor" {
     mode = "Active"
   }
 
+  layers = local.adot_layer_arns
+
   environment {
-    variables = {
-      ORDERS_TABLE_NAME               = aws_dynamodb_table.orders.name
-      EVENT_BUS_NAME                  = "default"
-      LOG_LEVEL                       = "INFO"
-      METRICS_NAMESPACE               = var.metrics_namespace
-      PAYMENT_SIMULATOR_FUNCTION_NAME = aws_lambda_function.payment_simulator.function_name
-      SERVICE_NAME                    = "order-processor"
-    }
+    variables = merge(
+      {
+        ORDERS_TABLE_NAME               = aws_dynamodb_table.orders.name
+        EVENT_BUS_NAME                  = "default"
+        LOG_LEVEL                       = "INFO"
+        METRICS_NAMESPACE               = var.metrics_namespace
+        PAYMENT_SIMULATOR_FUNCTION_NAME = aws_lambda_function.payment_simulator.function_name
+        SERVICE_NAME                    = "order-processor"
+        OTEL_SERVICE_NAME               = "order-processor"
+      },
+      local.otel_common_env,
+      local.lambda_wrapper_env
+    )
   }
 
   depends_on = [

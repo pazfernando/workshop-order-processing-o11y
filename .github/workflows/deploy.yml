@@ -27,6 +27,42 @@ on:
         required: false
         default: Workshop/OrderProcessing
         type: string
+      otel_mode:
+        description: OpenTelemetry runtime mode
+        required: false
+        default: code
+        type: choice
+        options:
+          - code
+          - adot_layer
+      adot_lambda_layer_arn:
+        description: ADOT Lambda layer ARN, required when otel_mode is adot_layer
+        required: false
+        default: ""
+        type: string
+      otel_exporter_otlp_endpoint:
+        description: Base OTLP endpoint for traces and metrics
+        required: false
+        default: ""
+        type: string
+      otel_exporter_otlp_traces_endpoint:
+        description: Optional OTLP traces endpoint override
+        required: false
+        default: ""
+        type: string
+      otel_exporter_otlp_metrics_endpoint:
+        description: Optional OTLP metrics endpoint override
+        required: false
+        default: ""
+        type: string
+      observability_emf_compatibility_mode:
+        description: Keep EMF metrics in parallel during migration
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
       create_observability_dashboard:
         description: Create CloudWatch dashboard
         required: false
@@ -59,6 +95,13 @@ jobs:
       PAYMENT_FAILURE_MODE: ${{ inputs.payment_failure_mode != '' && inputs.payment_failure_mode || vars.PAYMENT_FAILURE_MODE || 'none' }}
       LOG_RETENTION_IN_DAYS: ${{ inputs.log_retention_in_days != '' && inputs.log_retention_in_days || vars.LOG_RETENTION_IN_DAYS || '7' }}
       METRICS_NAMESPACE: ${{ inputs.metrics_namespace != '' && inputs.metrics_namespace || vars.METRICS_NAMESPACE || 'Workshop/OrderProcessing' }}
+      OTEL_MODE: ${{ inputs.otel_mode != '' && inputs.otel_mode || vars.OTEL_MODE || 'code' }}
+      ADOT_LAMBDA_LAYER_ARN: ${{ inputs.adot_lambda_layer_arn != '' && inputs.adot_lambda_layer_arn || vars.ADOT_LAMBDA_LAYER_ARN || '' }}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${{ inputs.otel_exporter_otlp_endpoint != '' && inputs.otel_exporter_otlp_endpoint || vars.OTEL_EXPORTER_OTLP_ENDPOINT || '' }}
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${{ inputs.otel_exporter_otlp_traces_endpoint != '' && inputs.otel_exporter_otlp_traces_endpoint || vars.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT || '' }}
+      OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: ${{ inputs.otel_exporter_otlp_metrics_endpoint != '' && inputs.otel_exporter_otlp_metrics_endpoint || vars.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT || '' }}
+      OTEL_METRIC_EXPORT_INTERVAL_MS: ${{ vars.OTEL_METRIC_EXPORT_INTERVAL_MS != '' && vars.OTEL_METRIC_EXPORT_INTERVAL_MS || '10000' }}
+      OBSERVABILITY_EMF_COMPATIBILITY_MODE: ${{ inputs.observability_emf_compatibility_mode != '' && inputs.observability_emf_compatibility_mode || vars.OBSERVABILITY_EMF_COMPATIBILITY_MODE || 'true' }}
       CREATE_OBSERVABILITY_DASHBOARD: ${{ inputs.create_observability_dashboard != '' && inputs.create_observability_dashboard || vars.CREATE_OBSERVABILITY_DASHBOARD || 'true' }}
       CREATE_OBSERVABILITY_ALARMS: ${{ inputs.create_observability_alarms != '' && inputs.create_observability_alarms || vars.CREATE_OBSERVABILITY_ALARMS || 'true' }}
       API_5XX_ALARM_THRESHOLD: ${{ vars.API_5XX_ALARM_THRESHOLD != '' && vars.API_5XX_ALARM_THRESHOLD || '1' }}
@@ -162,6 +205,17 @@ jobs:
             -backend-config="bucket=${TF_STATE_BUCKET}" \
             -backend-config="key=${TF_STATE_KEY}" \
             -backend-config="region=${AWS_REGION}"
+
+      - name: Validate observability configuration
+        run: |
+          if [ "$OTEL_MODE" = "adot_layer" ] && [ -z "$ADOT_LAMBDA_LAYER_ARN" ]; then
+            echo "ADOT_LAMBDA_LAYER_ARN is required when OTEL_MODE=adot_layer" >&2
+            exit 1
+          fi
+
+          if [ -z "$OTEL_EXPORTER_OTLP_ENDPOINT" ] && [ -z "$OTEL_EXPORTER_OTLP_TRACES_ENDPOINT" ] && [ -z "$OTEL_EXPORTER_OTLP_METRICS_ENDPOINT" ]; then
+            echo "No OTLP endpoint configured. The stack will still emit EMF/X-Ray signals, but OTel export will remain inactive."
+          fi
 
       - name: Reconcile Terraform state
         run: |
@@ -302,6 +356,13 @@ jobs:
             -var="payment_failure_mode=${PAYMENT_FAILURE_MODE}" \
             -var="log_retention_in_days=${LOG_RETENTION_IN_DAYS}" \
             -var="metrics_namespace=${METRICS_NAMESPACE}" \
+            -var="otel_mode=${OTEL_MODE}" \
+            -var="adot_lambda_layer_arn=${ADOT_LAMBDA_LAYER_ARN}" \
+            -var="otel_exporter_otlp_endpoint=${OTEL_EXPORTER_OTLP_ENDPOINT}" \
+            -var="otel_exporter_otlp_traces_endpoint=${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT}" \
+            -var="otel_exporter_otlp_metrics_endpoint=${OTEL_EXPORTER_OTLP_METRICS_ENDPOINT}" \
+            -var="otel_metric_export_interval_ms=${OTEL_METRIC_EXPORT_INTERVAL_MS}" \
+            -var="observability_emf_compatibility_mode=${OBSERVABILITY_EMF_COMPATIBILITY_MODE}" \
             -var="create_observability_dashboard=${CREATE_OBSERVABILITY_DASHBOARD}" \
             -var="create_observability_alarms=${CREATE_OBSERVABILITY_ALARMS}" \
             -var="api_5xx_alarm_threshold=${API_5XX_ALARM_THRESHOLD}" \
