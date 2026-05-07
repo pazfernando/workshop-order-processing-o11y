@@ -28,7 +28,7 @@ on:
         default: Workshop/OrderProcessing
         type: string
       otel_mode:
-        description: Who initializes OpenTelemetry in Lambda: app code or ADOT layer
+        description: "Who initializes OpenTelemetry in Lambda: app code or ADOT layer"
         required: false
         default: code
         type: choice
@@ -41,12 +41,12 @@ on:
         default: ""
         type: string
       otel_exporter_otlp_endpoint:
-        description: Direct OTLP base endpoint for the final backend. Used when otel_export_strategy=direct
+        description: "Direct OTLP base endpoint for the final backend. Used when otel_export_strategy=direct"
         required: false
         default: ""
         type: string
       otel_export_strategy:
-        description: Where OTLP goes first: direct to backend or collector first
+        description: "Where OTLP goes first: direct to backend or collector first"
         required: false
         default: direct
         type: choice
