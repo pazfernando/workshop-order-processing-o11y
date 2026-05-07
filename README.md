@@ -13,6 +13,27 @@ Caso base para talleres técnicos senior sobre arquitectura serverless, resilien
 - CloudWatch Metrics recibe métricas custom vía Embedded Metric Format (EMF) sin librerías adicionales.
 - AWS X-Ray queda habilitado en las Lambdas para ver latencia y errores por función.
 
+```mermaid
+flowchart LR
+    user["Cliente o sistema consumidor"] --> api["API Gateway HTTP API"]
+    api --> create["Lambda create-order"]
+    api --> get["Lambda get-order"]
+
+    create --> ddb["DynamoDB orders"]
+    create --> eb["EventBridge default bus"]
+
+    eb --> processor["Lambda order-processor"]
+    processor --> ddb
+    processor --> payment["Lambda payment-simulator"]
+    payment --> processor
+
+    api -. access logs y métricas nativas .-> obs["CloudWatch Logs, Metrics, Dashboard, Alarms y X-Ray"]
+    create -. logs JSON, EMF y X-Ray .-> obs
+    get -. logs JSON, EMF y X-Ray .-> obs
+    processor -. logs JSON, EMF y X-Ray .-> obs
+    payment -. logs JSON, EMF y X-Ray .-> obs
+```
+
 ## Observabilidad implementada
 
 - Correlación end-to-end con `x-correlation-id`, `requestId`, `awsRequestId` y `orderId`.
