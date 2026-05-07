@@ -21,6 +21,8 @@ Caso base para talleres técnicos senior sobre arquitectura serverless, resilien
 - Métricas EMF para creación de órdenes, lecturas, órdenes procesadas, errores y latencia del simulador de pago.
 - Retención explícita de CloudWatch Logs configurable desde Terraform.
 - Access logs para API Gateway HTTP API.
+- Dashboard de CloudWatch con métricas técnicas y de negocio.
+- Alarmas básicas para 5xx del API, errores del procesador y latencia del simulador de pago.
 
 Nota: esta solución usa API Gateway HTTP API. Esa variante no soporta tracing activo con X-Ray como sí ocurre con REST API, así que el API se observa mediante access logs; el tracing queda habilitado en las Lambdas.
 
@@ -61,6 +63,11 @@ Nota: esta solución usa API Gateway HTTP API. Esa variante no soporta tracing a
 - `PAYMENT_FAILURE_MODE`: `none`, `always_fail`, `random_fail`, `slow_response`, `random_reject`
 - `LOG_RETENTION_IN_DAYS`: retención de logs en CloudWatch. Default Terraform: `7`
 - `METRICS_NAMESPACE`: namespace de métricas EMF. Default Terraform: `Workshop/OrderProcessing`
+- `CREATE_OBSERVABILITY_DASHBOARD`: crea dashboard de CloudWatch. Default Terraform: `true`
+- `CREATE_OBSERVABILITY_ALARMS`: crea alarmas de CloudWatch. Default Terraform: `true`
+- `API_5XX_ALARM_THRESHOLD`: umbral de 5xx por minuto para la alarma del API. Default Terraform: `1`
+- `ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD`: umbral de errores por minuto del procesador. Default Terraform: `1`
+- `PAYMENT_LATENCY_ALARM_THRESHOLD_MS`: umbral promedio de latencia del simulador de pago. Default Terraform: `3000`
 - `TF_STATE_BUCKET`: opcional. Si no se define en GitHub Actions, el workflow crea uno automáticamente
 - `TF_STATE_KEY`: opcional. Default en CI/CD: `${environment}/${STACK_NAME}.tfstate`
 
@@ -91,6 +98,11 @@ export AWS_REGION="us-east-1"
 export PAYMENT_FAILURE_MODE="none"
 export LOG_RETENTION_IN_DAYS="7"
 export METRICS_NAMESPACE="Workshop/OrderProcessing"
+export CREATE_OBSERVABILITY_DASHBOARD="true"
+export CREATE_OBSERVABILITY_ALARMS="true"
+export API_5XX_ALARM_THRESHOLD="1"
+export ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD="1"
+export PAYMENT_LATENCY_ALARM_THRESHOLD_MS="3000"
 ```
 
 Si quieres mantener estado remoto también localmente:
@@ -133,7 +145,12 @@ terraform -chdir=infra/terraform apply \
   -var="resource_prefix=${RESOURCE_PREFIX}" \
   -var="payment_failure_mode=${PAYMENT_FAILURE_MODE}" \
   -var="log_retention_in_days=${LOG_RETENTION_IN_DAYS}" \
-  -var="metrics_namespace=${METRICS_NAMESPACE}"
+  -var="metrics_namespace=${METRICS_NAMESPACE}" \
+  -var="create_observability_dashboard=${CREATE_OBSERVABILITY_DASHBOARD}" \
+  -var="create_observability_alarms=${CREATE_OBSERVABILITY_ALARMS}" \
+  -var="api_5xx_alarm_threshold=${API_5XX_ALARM_THRESHOLD}" \
+  -var="order_processor_error_alarm_threshold=${ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD}" \
+  -var="payment_latency_alarm_threshold_ms=${PAYMENT_LATENCY_ALARM_THRESHOLD_MS}"
 ```
 
 ### 6. Obtener la URL del API
@@ -159,7 +176,12 @@ terraform -chdir=infra/terraform destroy \
   -var="resource_prefix=${RESOURCE_PREFIX}" \
   -var="payment_failure_mode=${PAYMENT_FAILURE_MODE}" \
   -var="log_retention_in_days=${LOG_RETENTION_IN_DAYS}" \
-  -var="metrics_namespace=${METRICS_NAMESPACE}"
+  -var="metrics_namespace=${METRICS_NAMESPACE}" \
+  -var="create_observability_dashboard=${CREATE_OBSERVABILITY_DASHBOARD}" \
+  -var="create_observability_alarms=${CREATE_OBSERVABILITY_ALARMS}" \
+  -var="api_5xx_alarm_threshold=${API_5XX_ALARM_THRESHOLD}" \
+  -var="order_processor_error_alarm_threshold=${ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD}" \
+  -var="payment_latency_alarm_threshold_ms=${PAYMENT_LATENCY_ALARM_THRESHOLD_MS}"
 ```
 
 ## CI/CD con GitHub Actions
@@ -184,6 +206,13 @@ Variables:
 - `STACK_NAME`
 - `RESOURCE_PREFIX` opcional
 - `PAYMENT_FAILURE_MODE`
+- `LOG_RETENTION_IN_DAYS` opcional
+- `METRICS_NAMESPACE` opcional
+- `CREATE_OBSERVABILITY_DASHBOARD` opcional
+- `CREATE_OBSERVABILITY_ALARMS` opcional
+- `API_5XX_ALARM_THRESHOLD` opcional
+- `ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD` opcional
+- `PAYMENT_LATENCY_ALARM_THRESHOLD_MS` opcional
 - `TF_STATE_KEY` opcional
 
 ### Backend remoto de Terraform en GitHub Actions
@@ -269,6 +298,13 @@ curl -X POST "${API_BASE_URL}/orders" \
 - CloudWatch Metrics:
   - Namespace por defecto: `Workshop/OrderProcessing`
   - Métricas esperadas: `OrdersCreated`, `OrdersProcessed`, `OrderProcessorErrors`, `PaymentSimulationLatencyMs`, `CreateOrderLatencyMs`
+- CloudWatch Dashboard:
+  - Terraform crea un dashboard llamado `${RESOURCE_PREFIX}-${STACK_NAME}-observability` cuando `CREATE_OBSERVABILITY_DASHBOARD=true`.
+  - Resume tráfico del API, errores, latencia, métricas Lambda y métricas de negocio.
+- CloudWatch Alarms:
+  - `${RESOURCE_PREFIX}-${STACK_NAME}-api-5xx`
+  - `${RESOURCE_PREFIX}-${STACK_NAME}-order-processor-errors`
+  - `${RESOURCE_PREFIX}-${STACK_NAME}-payment-latency`
 - X-Ray:
   - Revisa los traces de las Lambdas `create-order`, `get-order`, `order-processor` y `payment-simulator`.
   - El API no emite traces X-Ray por ser HTTP API; usa el access log para ese borde.

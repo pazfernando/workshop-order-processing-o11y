@@ -39,6 +39,7 @@ locals {
   payment_simulator_function_name = "${local.name_prefix}-payment-simulator"
   order_processor_function_name   = "${local.name_prefix}-order-processor"
   api_access_log_group_name       = "/aws/apigateway/${local.name_prefix}-http-api-access"
+  observability_dashboard_name    = "${local.name_prefix}-observability"
   lambda_log_group_names = {
     create_order      = "/aws/lambda/${local.create_order_function_name}"
     get_order         = "/aws/lambda/${local.get_order_function_name}"
@@ -430,4 +431,180 @@ resource "aws_lambda_permission" "allow_eventbridge_order_processor" {
   function_name = aws_lambda_function.order_processor.function_name
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.order_created.arn
+}
+
+resource "aws_cloudwatch_dashboard" "observability" {
+  count          = var.create_observability_dashboard ? 1 : 0
+  dashboard_name = local.observability_dashboard_name
+  dashboard_body = jsonencode({
+    widgets = [
+      {
+        type   = "metric"
+        x      = 0
+        y      = 0
+        width  = 12
+        height = 6
+        properties = {
+          title   = "API Traffic And Errors"
+          view    = "timeSeries"
+          stacked = false
+          region  = var.aws_region
+          metrics = [
+            ["AWS/ApiGateway", "Count", "ApiId", aws_apigatewayv2_api.orders.id, "Stage", aws_apigatewayv2_stage.default.name, { stat = "Sum", label = "RequestCount" }],
+            [".", "4xx", ".", ".", ".", ".", { stat = "Sum", label = "4xx" }],
+            [".", "5xx", ".", ".", ".", ".", { stat = "Sum", label = "5xx" }]
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 12
+        y      = 0
+        width  = 12
+        height = 6
+        properties = {
+          title   = "API Latency"
+          view    = "timeSeries"
+          stacked = false
+          region  = var.aws_region
+          metrics = [
+            ["AWS/ApiGateway", "Latency", "ApiId", aws_apigatewayv2_api.orders.id, "Stage", aws_apigatewayv2_stage.default.name, { stat = "Average", label = "LatencyMs" }],
+            [".", "IntegrationLatency", ".", ".", ".", ".", { stat = "Average", label = "IntegrationLatencyMs" }]
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 0
+        y      = 6
+        width  = 12
+        height = 6
+        properties = {
+          title   = "Lambda Errors"
+          view    = "timeSeries"
+          stacked = false
+          region  = var.aws_region
+          metrics = [
+            ["AWS/Lambda", "Errors", "FunctionName", aws_lambda_function.create_order.function_name, { stat = "Sum", label = "create-order" }],
+            [".", ".", "FunctionName", aws_lambda_function.get_order.function_name, { stat = "Sum", label = "get-order" }],
+            [".", ".", "FunctionName", aws_lambda_function.order_processor.function_name, { stat = "Sum", label = "order-processor" }],
+            [".", ".", "FunctionName", aws_lambda_function.payment_simulator.function_name, { stat = "Sum", label = "payment-simulator" }]
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 12
+        y      = 6
+        width  = 12
+        height = 6
+        properties = {
+          title   = "Lambda Duration"
+          view    = "timeSeries"
+          stacked = false
+          region  = var.aws_region
+          metrics = [
+            ["AWS/Lambda", "Duration", "FunctionName", aws_lambda_function.create_order.function_name, { stat = "Average", label = "create-order" }],
+            [".", ".", "FunctionName", aws_lambda_function.get_order.function_name, { stat = "Average", label = "get-order" }],
+            [".", ".", "FunctionName", aws_lambda_function.order_processor.function_name, { stat = "Average", label = "order-processor" }],
+            [".", ".", "FunctionName", aws_lambda_function.payment_simulator.function_name, { stat = "Average", label = "payment-simulator" }]
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 0
+        y      = 12
+        width  = 12
+        height = 6
+        properties = {
+          title   = "Business Flow Metrics"
+          view    = "timeSeries"
+          stacked = false
+          region  = var.aws_region
+          metrics = [
+            [var.metrics_namespace, "OrdersCreated", "service", "order-api", "operation", "create-order", { stat = "Sum" }],
+            [var.metrics_namespace, "OrdersProcessed", "service", "order-processor", "operation", "process-order-created", { stat = "Sum" }],
+            [var.metrics_namespace, "OrdersRead", "service", "order-api", "operation", "get-order", { stat = "Sum" }],
+            [var.metrics_namespace, "OrderProcessorErrors", "service", "order-processor", "operation", "process-order-created", { stat = "Sum" }]
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 12
+        y      = 12
+        width  = 12
+        height = 6
+        properties = {
+          title   = "Payment Metrics"
+          view    = "timeSeries"
+          stacked = false
+          region  = var.aws_region
+          metrics = [
+            [var.metrics_namespace, "PaymentSimulationLatencyMs", "service", "payment-simulator", "operation", "process-payment", { stat = "Average", label = "SimulatorLatencyMs" }],
+            [var.metrics_namespace, "PaymentInvocationLatencyMs", "service", "order-processor", "operation", "process-order-created", { stat = "Average", label = "InvocationLatencyMs" }],
+            [var.metrics_namespace, "PaymentSimulationErrors", "service", "payment-simulator", "operation", "process-payment", { stat = "Sum", label = "SimulationErrors" }]
+          ]
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_cloudwatch_metric_alarm" "api_5xx" {
+  count               = var.create_observability_alarms ? 1 : 0
+  alarm_name          = "${local.name_prefix}-api-5xx"
+  alarm_description   = "HTTP API is returning 5xx responses."
+  namespace           = "AWS/ApiGateway"
+  metric_name         = "5xx"
+  statistic           = "Sum"
+  period              = 60
+  evaluation_periods  = 1
+  threshold           = var.api_5xx_alarm_threshold
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    ApiId = aws_apigatewayv2_api.orders.id
+    Stage = aws_apigatewayv2_stage.default.name
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "order_processor_errors" {
+  count               = var.create_observability_alarms ? 1 : 0
+  alarm_name          = "${local.name_prefix}-order-processor-errors"
+  alarm_description   = "Order processor is emitting custom error metrics."
+  namespace           = var.metrics_namespace
+  metric_name         = "OrderProcessorErrors"
+  statistic           = "Sum"
+  period              = 60
+  evaluation_periods  = 1
+  threshold           = var.order_processor_error_alarm_threshold
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    service   = "order-processor"
+    operation = "process-order-created"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "payment_latency" {
+  count               = var.create_observability_alarms ? 1 : 0
+  alarm_name          = "${local.name_prefix}-payment-latency"
+  alarm_description   = "Payment simulator average latency is above the configured threshold."
+  namespace           = var.metrics_namespace
+  metric_name         = "PaymentSimulationLatencyMs"
+  statistic           = "Average"
+  period              = 60
+  evaluation_periods  = 1
+  threshold           = var.payment_latency_alarm_threshold_ms
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    service   = "payment-simulator"
+    operation = "process-payment"
+  }
 }

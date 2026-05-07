@@ -24,6 +24,11 @@ jobs:
       PAYMENT_FAILURE_MODE: ${{ vars.PAYMENT_FAILURE_MODE != '' && vars.PAYMENT_FAILURE_MODE || 'none' }}
       LOG_RETENTION_IN_DAYS: ${{ vars.LOG_RETENTION_IN_DAYS != '' && vars.LOG_RETENTION_IN_DAYS || '7' }}
       METRICS_NAMESPACE: ${{ vars.METRICS_NAMESPACE != '' && vars.METRICS_NAMESPACE || 'Workshop/OrderProcessing' }}
+      CREATE_OBSERVABILITY_DASHBOARD: ${{ vars.CREATE_OBSERVABILITY_DASHBOARD != '' && vars.CREATE_OBSERVABILITY_DASHBOARD || 'true' }}
+      CREATE_OBSERVABILITY_ALARMS: ${{ vars.CREATE_OBSERVABILITY_ALARMS != '' && vars.CREATE_OBSERVABILITY_ALARMS || 'true' }}
+      API_5XX_ALARM_THRESHOLD: ${{ vars.API_5XX_ALARM_THRESHOLD != '' && vars.API_5XX_ALARM_THRESHOLD || '1' }}
+      ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD: ${{ vars.ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD != '' && vars.ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD || '1' }}
+      PAYMENT_LATENCY_ALARM_THRESHOLD_MS: ${{ vars.PAYMENT_LATENCY_ALARM_THRESHOLD_MS != '' && vars.PAYMENT_LATENCY_ALARM_THRESHOLD_MS || '3000' }}
       TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
       TF_STATE_KEY: ${{ vars.TF_STATE_KEY }}
 
@@ -124,4 +129,9 @@ jobs:
             -var="resource_prefix=${RESOURCE_PREFIX}" \
             -var="payment_failure_mode=${PAYMENT_FAILURE_MODE}" \
             -var="log_retention_in_days=${LOG_RETENTION_IN_DAYS}" \
-            -var="metrics_namespace=${METRICS_NAMESPACE}"
+            -var="metrics_namespace=${METRICS_NAMESPACE}" \
+            -var="create_observability_dashboard=${CREATE_OBSERVABILITY_DASHBOARD}" \
+            -var="create_observability_alarms=${CREATE_OBSERVABILITY_ALARMS}" \
+            -var="api_5xx_alarm_threshold=${API_5XX_ALARM_THRESHOLD}" \
+            -var="order_processor_error_alarm_threshold=${ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD}" \
+            -var="payment_latency_alarm_threshold_ms=${PAYMENT_LATENCY_ALARM_THRESHOLD_MS}"

@@ -44,3 +44,33 @@ variable "metrics_namespace" {
   type        = string
   default     = "Workshop/OrderProcessing"
 }
+
+variable "create_observability_dashboard" {
+  description = "Whether to create a CloudWatch dashboard for the workshop."
+  type        = bool
+  default     = true
+}
+
+variable "create_observability_alarms" {
+  description = "Whether to create CloudWatch alarms for key operational signals."
+  type        = bool
+  default     = true
+}
+
+variable "api_5xx_alarm_threshold" {
+  description = "Threshold for API Gateway 5xx alarm within a one-minute period."
+  type        = number
+  default     = 1
+}
+
+variable "order_processor_error_alarm_threshold" {
+  description = "Threshold for order processor errors within a one-minute period."
+  type        = number
+  default     = 1
+}
+
+variable "payment_latency_alarm_threshold_ms" {
+  description = "Threshold in milliseconds for high average payment simulation latency."
+  type        = number
+  default     = 3000
+}

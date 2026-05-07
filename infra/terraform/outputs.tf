@@ -17,3 +17,17 @@ output "api_access_log_group_name" {
   description = "CloudWatch log group for API Gateway access logs."
   value       = aws_cloudwatch_log_group.api_access.name
 }
+
+output "observability_dashboard_name" {
+  description = "CloudWatch dashboard name for the workshop."
+  value       = try(aws_cloudwatch_dashboard.observability[0].dashboard_name, null)
+}
+
+output "observability_alarm_names" {
+  description = "CloudWatch alarm names created for operational monitoring."
+  value = compact([
+    try(aws_cloudwatch_metric_alarm.api_5xx[0].alarm_name, null),
+    try(aws_cloudwatch_metric_alarm.order_processor_errors[0].alarm_name, null),
+    try(aws_cloudwatch_metric_alarm.payment_latency[0].alarm_name, null)
+  ])
+}
