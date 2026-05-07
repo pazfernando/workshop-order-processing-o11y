@@ -417,6 +417,7 @@ jobs:
           EFFECTIVE_OTLP_BASE_ENDPOINT="$(terraform -chdir=infra/terraform output -raw effective_otlp_base_endpoint || true)"
           EFFECTIVE_OTLP_TRACES_ENDPOINT="$(terraform -chdir=infra/terraform output -raw effective_otlp_traces_endpoint || true)"
           EFFECTIVE_OTLP_METRICS_ENDPOINT="$(terraform -chdir=infra/terraform output -raw effective_otlp_metrics_endpoint || true)"
+          EFFECTIVE_ADOT_LAMBDA_LAYER_ARN="$(terraform -chdir=infra/terraform output -raw effective_adot_lambda_layer_arn || true)"
 
           if [ "$OTEL_MODE" = "adot_layer" ]; then
             OTEL_INITIALIZATION="ADOT Lambda Layer"
@@ -473,7 +474,8 @@ jobs:
           | OTel export route | ${OTEL_EXPORT_ROUTE} |
           | OTLP export status | ${OTLP_EXPORT_STATUS} |
           | EMF compatibility mode | ${EMF_STATUS} |
-          | ADOT Lambda Layer ARN | \`${ADOT_LAMBDA_LAYER_ARN}\` |
+          | Requested ADOT Lambda Layer ARN | \`${ADOT_LAMBDA_LAYER_ARN}\` |
+          | Effective ADOT Lambda Layer ARN | \`${EFFECTIVE_ADOT_LAMBDA_LAYER_ARN}\` |
           | Effective OTLP base endpoint | \`${EFFECTIVE_OTLP_BASE_ENDPOINT}\` |
           | Effective OTLP traces endpoint | \`${EFFECTIVE_OTLP_TRACES_ENDPOINT}\` |
           | Effective OTLP metrics endpoint | \`${EFFECTIVE_OTLP_METRICS_ENDPOINT}\` |
@@ -529,7 +531,8 @@ jobs:
             "otel_export_route": "${OTEL_EXPORT_ROUTE}",
             "otlp_export_status": "${OTLP_EXPORT_STATUS}",
             "observability_emf_compatibility_mode": "${OBSERVABILITY_EMF_COMPATIBILITY_MODE}",
-            "adot_lambda_layer_arn": "${ADOT_LAMBDA_LAYER_ARN}",
+            "requested_adot_lambda_layer_arn": "${ADOT_LAMBDA_LAYER_ARN}",
+            "effective_adot_lambda_layer_arn": "${EFFECTIVE_ADOT_LAMBDA_LAYER_ARN}",
             "effective_otlp_base_endpoint": "${EFFECTIVE_OTLP_BASE_ENDPOINT}",
             "effective_otlp_traces_endpoint": "${EFFECTIVE_OTLP_TRACES_ENDPOINT}",
             "effective_otlp_metrics_endpoint": "${EFFECTIVE_OTLP_METRICS_ENDPOINT}",

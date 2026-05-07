@@ -46,9 +46,30 @@ locals {
     payment_simulator = "/aws/lambda/${local.payment_simulator_function_name}"
     order_processor   = "/aws/lambda/${local.order_processor_function_name}"
   }
-  event_bus_arn           = "arn:${data.aws_partition.current.partition}:events:${var.aws_region}:${data.aws_caller_identity.current.account_id}:event-bus/default"
-  deployment_environment  = local.normalized_resource_prefix != "" ? local.normalized_resource_prefix : "local"
-  effective_otlp_endpoint = var.otel_export_strategy == "collector" ? var.otel_collector_endpoint : var.otel_exporter_otlp_endpoint
+  event_bus_arn          = "arn:${data.aws_partition.current.partition}:events:${var.aws_region}:${data.aws_caller_identity.current.account_id}:event-bus/default"
+  deployment_environment = local.normalized_resource_prefix != "" ? local.normalized_resource_prefix : "local"
+  adot_supported_regions = toset([
+    "ap-northeast-1",
+    "ap-northeast-2",
+    "ap-south-1",
+    "ap-southeast-1",
+    "ap-southeast-2",
+    "ca-central-1",
+    "eu-central-1",
+    "eu-north-1",
+    "eu-west-1",
+    "eu-west-2",
+    "eu-west-3",
+    "sa-east-1",
+    "us-east-1",
+    "us-east-2",
+    "us-west-1",
+    "us-west-2"
+  ])
+  adot_layer_architecture         = "amd64"
+  inferred_adot_lambda_layer_arn  = contains(local.adot_supported_regions, var.aws_region) ? "arn:aws:lambda:${var.aws_region}:901920570463:layer:aws-otel-nodejs-${local.adot_layer_architecture}-ver-1-30-2:1" : ""
+  effective_adot_lambda_layer_arn = trim(var.adot_lambda_layer_arn, " ") != "" ? trim(var.adot_lambda_layer_arn, " ") : local.inferred_adot_lambda_layer_arn
+  effective_otlp_endpoint         = var.otel_export_strategy == "collector" ? var.otel_collector_endpoint : var.otel_exporter_otlp_endpoint
   effective_otlp_traces_endpoint = var.otel_export_strategy == "collector" ? (
     var.otel_collector_traces_endpoint != "" ? var.otel_collector_traces_endpoint : var.otel_collector_endpoint
   ) : var.otel_exporter_otlp_traces_endpoint
@@ -70,9 +91,9 @@ locals {
     OTEL_EXPORT_STRATEGY                 = var.otel_export_strategy
   }
   lambda_wrapper_env = var.otel_mode == "adot_layer" ? {
-    AWS_LAMBDA_EXEC_WRAPPER = "/opt/otel-handler"
+    AWS_LAMBDA_EXEC_WRAPPER = "/opt/otel-instrument"
   } : {}
-  adot_layer_arns = var.otel_mode == "adot_layer" ? [var.adot_lambda_layer_arn] : []
+  adot_layer_arns = var.otel_mode == "adot_layer" ? [local.effective_adot_lambda_layer_arn] : []
 }
 
 resource "aws_dynamodb_table" "orders" {
@@ -280,6 +301,13 @@ resource "aws_lambda_function" "create_order" {
   }
 
   layers = local.adot_layer_arns
+
+  lifecycle {
+    precondition {
+      condition     = var.otel_mode != "adot_layer" || local.effective_adot_lambda_layer_arn != ""
+      error_message = "Unable to resolve an ADOT Lambda layer ARN for the selected region. Set adot_lambda_layer_arn explicitly or use a supported region."
+    }
+  }
 
   environment {
     variables = merge(

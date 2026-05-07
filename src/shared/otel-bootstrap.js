@@ -107,7 +107,10 @@ function isOtelEnabled() {
 }
 
 function isAdotLambdaLayerEnabled() {
-  return process.env.AWS_LAMBDA_EXEC_WRAPPER === "/opt/otel-handler";
+  return [
+    "/opt/otel-handler",
+    "/opt/otel-instrument",
+  ].includes(process.env.AWS_LAMBDA_EXEC_WRAPPER);
 }
 
 function registerShutdown(api, sdk) {

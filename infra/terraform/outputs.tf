@@ -46,3 +46,8 @@ output "effective_otlp_metrics_endpoint" {
   description = "Effective OTLP metrics endpoint configured for the Lambda functions."
   value       = local.effective_otlp_metrics_endpoint
 }
+
+output "effective_adot_lambda_layer_arn" {
+  description = "Effective ADOT Lambda layer ARN configured for the Lambda functions."
+  value       = local.effective_adot_lambda_layer_arn
+}
