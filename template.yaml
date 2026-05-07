@@ -1,0 +1,130 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Order processing business case for senior technical workshops
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Timeout: 10
+    MemorySize: 256
+    Tracing: PassThrough
+    Environment:
+      Variables:
+        ORDERS_TABLE_NAME: !Ref OrdersTable
+        EVENT_BUS_NAME: default
+        LOG_LEVEL: INFO
+
+Parameters:
+  PaymentFailureMode:
+    Type: String
+    Default: none
+    AllowedValues:
+      - none
+      - always_fail
+      - random_fail
+      - slow_response
+      - random_reject
+    Description: Failure behavior for the payment simulator
+
+Resources:
+  OrdersHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: $default
+
+  OrdersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Orders
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: orderId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: orderId
+          KeyType: HASH
+
+  CreateOrderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: order-api/create-order.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref OrdersTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - events:PutEvents
+              Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+      Events:
+        CreateOrder:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref OrdersHttpApi
+            Path: /orders
+            Method: POST
+
+  GetOrderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: order-api/get-order.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref OrdersTable
+      Events:
+        GetOrder:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref OrdersHttpApi
+            Path: /orders/{orderId}
+            Method: GET
+
+  PaymentSimulatorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: payment-simulator/process-payment.handler
+      Timeout: 15
+      Environment:
+        Variables:
+          PAYMENT_FAILURE_MODE: !Ref PaymentFailureMode
+
+  OrderProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: order-processor/process-order-created.handler
+      Environment:
+        Variables:
+          PAYMENT_SIMULATOR_FUNCTION_NAME: !Ref PaymentSimulatorFunction
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref OrdersTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - lambda:InvokeFunction
+              Resource: !GetAtt PaymentSimulatorFunction.Arn
+      Events:
+        OrderCreatedRule:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source:
+                - workshop.orders
+              detail-type:
+                - OrderCreated
+
+Outputs:
+  ApiUrl:
+    Description: Base URL for the HTTP API
+    Value: !Sub https://${OrdersHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
+  OrdersTableName:
+    Description: DynamoDB table name
+    Value: !Ref OrdersTable
+  PaymentSimulatorName:
+    Description: Payment simulator Lambda function name
+    Value: !Ref PaymentSimulatorFunction
+

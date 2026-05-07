@@ -1,0 +1,66 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      payment_failure_mode:
+        description: Payment simulator failure mode
+        required: false
+        default: none
+        type: choice
+        options:
+          - none
+          - always_fail
+          - random_fail
+          - slow_response
+          - random_reject
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: aws-dev
+    permissions:
+      contents: read
+
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'us-east-1' }}
+      STACK_NAME: ${{ vars.STACK_NAME != '' && vars.STACK_NAME || 'observability-business-case' }}
+      PAYMENT_FAILURE_MODE: ${{ inputs.payment_failure_mode != '' && inputs.payment_failure_mode || vars.PAYMENT_FAILURE_MODE || 'none' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup AWS SAM
+        uses: aws-actions/setup-sam@v2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Deploy stack
+        run: bash scripts/deploy.sh
+
+      - name: Show API URL
+        run: |
+          aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --region "$AWS_REGION" \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" \
+            --output text
+
