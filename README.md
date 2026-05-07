@@ -22,9 +22,7 @@ Caso base para talleres técnicos senior sobre arquitectura serverless, resilien
 │       ├── outputs.tf
 │       └── variables.tf
 ├── scripts
-│   ├── cleanup.sh
 │   ├── create-order.sh
-│   ├── deploy.sh
 │   ├── generate-load.sh
 │   ├── get-order.sh
 │   └── prepare-lambda-package.sh
@@ -82,21 +80,40 @@ export TF_STATE_BUCKET="<tu-bucket-terraform-state>"
 export TF_STATE_KEY="observability-business-case.tfstate"
 ```
 
-### 3. Instalar dependencias y desplegar
+### 3. Instalar dependencias y empaquetar Lambda
 
 ```bash
 npm install
-bash scripts/deploy.sh
+bash scripts/prepare-lambda-package.sh
 ```
 
-El script hace lo siguiente:
+### 4. Inicializar Terraform
 
-- instala dependencias si `node_modules/` no existe
-- arma un bundle ZIP con `src/` y `node_modules/`
-- ejecuta `terraform init`
-- ejecuta `terraform apply`
+Si usas estado remoto:
 
-### 4. Obtener la URL del API
+```bash
+terraform -chdir=infra/terraform init -reconfigure \
+  -backend-config="bucket=${TF_STATE_BUCKET}" \
+  -backend-config="key=${TF_STATE_KEY:-${STACK_NAME}.tfstate}" \
+  -backend-config="region=${AWS_REGION}"
+```
+
+Si trabajas localmente sin backend remoto:
+
+```bash
+terraform -chdir=infra/terraform init -backend=false
+```
+
+### 5. Aplicar infraestructura
+
+```bash
+terraform -chdir=infra/terraform apply \
+  -var="aws_region=${AWS_REGION}" \
+  -var="stack_name=${STACK_NAME}" \
+  -var="payment_failure_mode=${PAYMENT_FAILURE_MODE}"
+```
+
+### 6. Obtener la URL del API
 
 ```bash
 terraform -chdir=infra/terraform output -raw api_base_url
@@ -113,7 +130,10 @@ Las rutas operativas son `${API_BASE_URL}/orders` y `${API_BASE_URL}/orders/{ord
 ## Destruir infraestructura
 
 ```bash
-bash scripts/cleanup.sh
+terraform -chdir=infra/terraform destroy \
+  -var="aws_region=${AWS_REGION}" \
+  -var="stack_name=${STACK_NAME}" \
+  -var="payment_failure_mode=${PAYMENT_FAILURE_MODE}"
 ```
 
 ## CI/CD con GitHub Actions
@@ -149,7 +169,7 @@ Antes de usar el workflow `Deploy`, crea un bucket S3 para el estado de Terrafor
 1. Crear un branch y abrir Pull Request.
 2. GitHub Actions ejecuta `CI`.
 3. Al hacer merge a `main`, GitHub Actions ejecuta `Deploy`.
-4. El workflow empaqueta la app y ejecuta `bash scripts/deploy.sh`.
+4. El workflow empaqueta la app, ejecuta `terraform init` y luego `terraform apply`.
 5. Al final imprime `api_base_url` desde Terraform.
 
 ## Permisos IAM mínimos sugeridos para el usuario de despliegue
