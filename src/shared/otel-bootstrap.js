@@ -19,14 +19,24 @@ function bootstrapOpenTelemetry() {
 
   const api = safeRequire("@opentelemetry/api");
   const sdkNode = safeRequire("@opentelemetry/sdk-node");
-  const autoInstrumentation = safeRequire("@opentelemetry/auto-instrumentations-node");
+  const httpInstrumentation = safeRequire("@opentelemetry/instrumentation-http");
+  const awsLambdaInstrumentation = safeRequire("@opentelemetry/instrumentation-aws-lambda");
+  const awsSdkInstrumentation = safeRequire("@opentelemetry/instrumentation-aws-sdk");
   const resources = safeRequire("@opentelemetry/resources");
   const semanticConventions = safeRequire("@opentelemetry/semantic-conventions");
   const traceExporterModule = safeRequire("@opentelemetry/exporter-trace-otlp-http");
   const metricExporterModule = safeRequire("@opentelemetry/exporter-metrics-otlp-http");
   const sdkMetrics = safeRequire("@opentelemetry/sdk-metrics");
 
-  if (!api || !sdkNode || !autoInstrumentation || !resources || !semanticConventions) {
+  if (
+    !api ||
+    !sdkNode ||
+    !resources ||
+    !semanticConventions ||
+    !httpInstrumentation ||
+    !awsLambdaInstrumentation ||
+    !awsSdkInstrumentation
+  ) {
     return;
   }
 
@@ -50,13 +60,11 @@ function bootstrapOpenTelemetry() {
       resource,
       traceExporter,
       metricReader,
-      instrumentations: [
-        autoInstrumentation.getNodeAutoInstrumentations({
-          "@opentelemetry/instrumentation-fs": {
-            enabled: false,
-          },
-        }),
-      ],
+      instrumentations: buildInstrumentations(
+        httpInstrumentation,
+        awsLambdaInstrumentation,
+        awsSdkInstrumentation
+      ),
     });
 
     Promise.resolve(sdk.start()).catch((error) => {
@@ -67,6 +75,14 @@ function bootstrapOpenTelemetry() {
   } catch (error) {
     logDiagnostic(api, "Failed to bootstrap OpenTelemetry", error);
   }
+}
+
+function buildInstrumentations(httpInstrumentation, awsLambdaInstrumentation, awsSdkInstrumentation) {
+  return [
+    new httpInstrumentation.HttpInstrumentation(),
+    new awsLambdaInstrumentation.AwsLambdaInstrumentation(),
+    new awsSdkInstrumentation.AwsInstrumentation(),
+  ];
 }
 
 function buildTraceExporter(traceExporterModule) {
