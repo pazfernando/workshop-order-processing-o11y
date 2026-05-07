@@ -76,7 +76,7 @@ variable "otel_exporter_otlp_endpoint" {
 variable "otel_export_strategy" {
   description = "OTLP routing strategy. Use 'direct' to export straight to a backend endpoint, or 'collector' to route first through an OpenTelemetry Collector."
   type        = string
-  default     = "collector"
+  default     = "direct"
 
   validation {
     condition     = contains(["direct", "collector"], var.otel_export_strategy)

@@ -106,32 +106,137 @@ Nota: esta solución usa API Gateway HTTP API. Esa variante no soporta tracing a
 
 ## Variables de despliegue
 
-- `STACK_NAME`: prefijo para los recursos AWS. Default: `observability-business-case`
-- `RESOURCE_PREFIX`: prefijo general opcional para namespacing de recursos. Default en CI/CD: el nombre del environment
-- `AWS_REGION`: región de despliegue. Default: `us-east-1`
-- `PAYMENT_FAILURE_MODE`: `none`, `always_fail`, `random_fail`, `slow_response`, `random_reject`
-- `LOG_RETENTION_IN_DAYS`: retención de logs en CloudWatch. Default Terraform: `7`
-- `METRICS_NAMESPACE`: namespace de métricas EMF. Default Terraform: `Workshop/OrderProcessing`
-- `OTEL_MODE`: `code` para bootstrap en proceso o `adot_layer` para usar un ADOT Lambda layer. Default Terraform: `code`
-- `OTEL_EXPORT_STRATEGY`: `collector` para enrutar primero a un OTel Collector o `direct` para enviar OTLP directo al backend. Default Terraform: `collector`
-- `OTEL_COLLECTOR_ENDPOINT`: endpoint base OTLP del Collector, por ejemplo `http://collector.internal:4318`
-- `OTEL_COLLECTOR_TRACES_ENDPOINT`: override opcional del endpoint de trazas del Collector
-- `OTEL_COLLECTOR_METRICS_ENDPOINT`: override opcional del endpoint de métricas del Collector
-- `ADOT_LAMBDA_LAYER_ARN`: ARN del layer ADOT. Requerido cuando `OTEL_MODE=adot_layer`
-- `OBSERVABILITY_OTEL_ENABLED`: habilita bootstrap OTel en código cuando no se usa un layer externo. Default implícito: `true`
-- `OBSERVABILITY_EMF_COMPATIBILITY_MODE`: mantiene emisión EMF en paralelo para CloudWatch mientras conviven ambos enfoques. Default implícito: `true`
-- `OTEL_SERVICE_NAME`: override opcional del `service.name` de OpenTelemetry
-- `OTEL_EXPORTER_OTLP_ENDPOINT`: endpoint base OTLP para exportar trazas y métricas a un Collector o backend compatible
-- `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`: override opcional para trazas
-- `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`: override opcional para métricas
-- `OTEL_METRIC_EXPORT_INTERVAL_MS`: intervalo de exportación de métricas OTel en milisegundos. Default en código: `10000`
-- `CREATE_OBSERVABILITY_DASHBOARD`: crea dashboard de CloudWatch. Default Terraform: `true`
-- `CREATE_OBSERVABILITY_ALARMS`: crea alarmas de CloudWatch. Default Terraform: `true`
-- `API_5XX_ALARM_THRESHOLD`: umbral de 5xx por minuto para la alarma del API. Default Terraform: `1`
-- `ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD`: umbral de errores por minuto del procesador. Default Terraform: `1`
-- `PAYMENT_LATENCY_ALARM_THRESHOLD_MS`: umbral promedio de latencia del simulador de pago. Default Terraform: `3000`
-- `TF_STATE_BUCKET`: opcional. Si no se define en GitHub Actions, el workflow crea uno automáticamente
-- `TF_STATE_KEY`: opcional. Default en CI/CD: `${environment}/${STACK_NAME}.tfstate`
+Lee esta sección en este orden:
+
+1. Variables base del stack
+2. Variables de observabilidad
+3. Variables de alarmas y dashboard
+4. Variables de estado remoto
+
+### 1. Variables base del stack
+
+| Variable | Valores permitidos | Obligatoria | Significado | Recomendado |
+| :--- | :--- | :--- | :--- | :--- |
+| `STACK_NAME` | cualquier string válido para nombres de recursos AWS | Sí | Nombre lógico del stack | `observability-business-case` |
+| `RESOURCE_PREFIX` | cualquier string válido para prefijo | Sí | Prefijo para separar ambientes o tenants | `aws-dev` |
+| `AWS_REGION` | una región AWS válida | Sí | Región donde se crea la infraestructura | `us-east-1` |
+| `PAYMENT_FAILURE_MODE` | `none`, `always_fail`, `random_fail`, `slow_response`, `random_reject` | Sí | Define cómo se comporta la Lambda `payment-simulator` durante demos y pruebas | `none` |
+| `LOG_RETENTION_IN_DAYS` | número entero positivo | No | Días de retención para CloudWatch Logs | `7` |
+| `METRICS_NAMESPACE` | cualquier string | No | Namespace de métricas EMF mientras siga activa la compatibilidad con CloudWatch Metrics clásico | `Workshop/OrderProcessing` |
+
+### 2. Variables de observabilidad
+
+Primero define **quién inicializa OTel** y luego **a dónde exporta**.
+
+#### 2.1 Quién inicializa OpenTelemetry
+
+| Variable | Valores permitidos | Obligatoria | Significado | Recomendado |
+| :--- | :--- | :--- | :--- | :--- |
+| `OTEL_MODE` | `code`, `adot_layer` | Sí | Decide si el SDK OTel arranca dentro del código de la app o desde un Lambda Layer ADOT | `code` |
+| `ADOT_LAMBDA_LAYER_ARN` | ARN de Lambda Layer o vacío | Solo si `OTEL_MODE=adot_layer` | ARN del layer ADOT que inicializa OTel fuera del código | vacío |
+
+Significado de `OTEL_MODE`:
+
+- `code`: la app usa [otel-bootstrap.js](/Users/pazfernando/Documents/projects/windsurf/workshop-order-processing/src/shared/otel-bootstrap.js:1) para iniciar OTel en proceso.
+- `adot_layer`: Terraform adjunta un Lambda Layer ADOT y define `AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-handler`.
+
+#### 2.2 A dónde exporta OpenTelemetry
+
+| Variable | Valores permitidos | Obligatoria | Significado | Recomendado |
+| :--- | :--- | :--- | :--- | :--- |
+| `OTEL_EXPORT_STRATEGY` | `direct`, `collector` | Sí | Define si las Lambdas envían OTLP directo al backend final o primero a un Collector | `direct` hoy |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | URL OTLP válida o vacío | Solo si `OTEL_EXPORT_STRATEGY=direct` | Endpoint base OTLP del backend final | vacío |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | URL OTLP válida o vacío | No | Override de trazas para modo `direct` | vacío |
+| `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | URL OTLP válida o vacío | No | Override de métricas para modo `direct` | vacío |
+| `OTEL_COLLECTOR_ENDPOINT` | URL OTLP válida o vacío | Solo si `OTEL_EXPORT_STRATEGY=collector` | Endpoint base del Collector | vacío hasta que exista Collector |
+| `OTEL_COLLECTOR_TRACES_ENDPOINT` | URL OTLP válida o vacío | No | Override de trazas para modo `collector` | vacío |
+| `OTEL_COLLECTOR_METRICS_ENDPOINT` | URL OTLP válida o vacío | No | Override de métricas para modo `collector` | vacío |
+
+Significado de `OTEL_EXPORT_STRATEGY`:
+
+- `direct`: la app exporta OTLP directo a CloudWatch OTLP o a un tercero.
+- `collector`: la app exporta OTLP a un Collector, y el Collector decide si reenvía a CloudWatch, Datadog, Grafana, Prometheus u otros.
+
+Reglas prácticas:
+
+- Si usas `direct`, normalmente solo defines `OTEL_EXPORTER_OTLP_ENDPOINT`.
+- Si usas `collector`, normalmente solo defines `OTEL_COLLECTOR_ENDPOINT`.
+- Los endpoints específicos de trazas y métricas se usan solo si necesitas rutas distintas.
+
+#### 2.3 Compatibilidad temporal y tuning
+
+| Variable | Valores permitidos | Obligatoria | Significado | Recomendado |
+| :--- | :--- | :--- | :--- | :--- |
+| `OBSERVABILITY_EMF_COMPATIBILITY_MODE` | `true`, `false` | No | Mantiene emisión EMF en paralelo mientras migras a OTel | `true` |
+| `OTEL_METRIC_EXPORT_INTERVAL_MS` | entero positivo | No | Intervalo de exportación de métricas OTel desde la app | `10000` |
+
+Variables que normalmente no debes tocar a mano:
+
+- `OBSERVABILITY_OTEL_ENABLED`: Terraform la deriva desde `OTEL_MODE`.
+- `OTEL_SERVICE_NAME`: Terraform la define por Lambda.
+
+### 3. Variables de alarmas y dashboard
+
+| Variable | Valores permitidos | Obligatoria | Significado | Recomendado |
+| :--- | :--- | :--- | :--- | :--- |
+| `CREATE_OBSERVABILITY_DASHBOARD` | `true`, `false` | No | Crea el dashboard de CloudWatch | `true` |
+| `CREATE_OBSERVABILITY_ALARMS` | `true`, `false` | No | Crea alarmas base de operación | `true` |
+| `API_5XX_ALARM_THRESHOLD` | número entero no negativo | No | Umbral por minuto para respuestas 5xx del API | `1` |
+| `ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD` | número entero no negativo | No | Umbral por minuto para errores del `order-processor` | `1` |
+| `PAYMENT_LATENCY_ALARM_THRESHOLD_MS` | número entero no negativo | No | Umbral promedio de latencia del simulador de pago | `3000` |
+
+### 4. Variables de estado remoto de Terraform
+
+| Variable | Valores permitidos | Obligatoria | Significado | Recomendado |
+| :--- | :--- | :--- | :--- | :--- |
+| `TF_STATE_BUCKET` | nombre de bucket S3 o vacío | No | Bucket del backend remoto de Terraform | vacío si el workflow lo crea |
+| `TF_STATE_KEY` | path/key de S3 o vacío | No | Key del estado remoto | `${environment}/${STACK_NAME}.tfstate` |
+
+### Configuraciones recomendadas por caso
+
+#### Caso A: valor por defecto operativo del repo
+
+Usa este caso si todavía no tienes Collector ni backend OTLP confirmado.
+
+| Variable | Valor |
+| :--- | :--- |
+| `OTEL_MODE` | `code` |
+| `OTEL_EXPORT_STRATEGY` | `direct` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | vacío o endpoint directo si ya existe |
+| `OBSERVABILITY_EMF_COMPATIBILITY_MODE` | `true` |
+
+#### Caso B: exportación directa a backend OTLP
+
+Usa este caso si enviarás OTel directo a CloudWatch OTLP o a un vendor.
+
+| Variable | Valor |
+| :--- | :--- |
+| `OTEL_MODE` | `code` |
+| `OTEL_EXPORT_STRATEGY` | `direct` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `https://...` |
+| `OBSERVABILITY_EMF_COMPATIBILITY_MODE` | `true` |
+
+#### Caso C: arquitectura objetivo con Collector
+
+Usa este caso solo cuando ya existe un Collector accesible desde las Lambdas.
+
+| Variable | Valor |
+| :--- | :--- |
+| `OTEL_MODE` | `code` |
+| `OTEL_EXPORT_STRATEGY` | `collector` |
+| `OTEL_COLLECTOR_ENDPOINT` | `http://collector.internal:4318` |
+| `OBSERVABILITY_EMF_COMPATIBILITY_MODE` | `true` |
+
+#### Caso D: ADOT Layer + Collector
+
+Usa este caso cuando quieras que el bootstrap de OTel quede fuera del código.
+
+| Variable | Valor |
+| :--- | :--- |
+| `OTEL_MODE` | `adot_layer` |
+| `ADOT_LAMBDA_LAYER_ARN` | `arn:aws:lambda:...:layer:...` |
+| `OTEL_EXPORT_STRATEGY` | `collector` |
+| `OTEL_COLLECTOR_ENDPOINT` | `http://collector.internal:4318` |
 
 ## Despliegue local
 
@@ -161,8 +266,8 @@ export PAYMENT_FAILURE_MODE="none"
 export LOG_RETENTION_IN_DAYS="7"
 export METRICS_NAMESPACE="Workshop/OrderProcessing"
 export OTEL_MODE="code"
-export OTEL_EXPORT_STRATEGY="collector"
-export OTEL_COLLECTOR_ENDPOINT="http://collector.internal:4318"
+export OTEL_EXPORT_STRATEGY="direct"
+export OTEL_COLLECTOR_ENDPOINT=""
 export OTEL_COLLECTOR_TRACES_ENDPOINT=""
 export OTEL_COLLECTOR_METRICS_ENDPOINT=""
 export ADOT_LAMBDA_LAYER_ARN=""
@@ -364,6 +469,11 @@ Estas configuraciones aplican:
 - `filter/health` para sacar tráfico sanitario
 - `attributes/sanitize` para eliminar atributos de alta cardinalidad o sensibles
 - `tail_sampling` para priorizar errores y trazas lentas antes de exportar a CloudWatch o terceros
+
+Importante:
+
+- El workflow del repositorio usa `direct` como default operativo.
+- Cambia a `collector` solo cuando ya tengas un endpoint real en `OTEL_COLLECTOR_ENDPOINT`.
 
 Ejemplo de despliegue apuntando al Collector:
 

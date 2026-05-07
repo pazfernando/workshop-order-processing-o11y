@@ -48,7 +48,7 @@ on:
       otel_export_strategy:
         description: Export OTLP directly or through a collector first
         required: false
-        default: collector
+        default: direct
         type: choice
         options:
           - collector
@@ -119,7 +119,7 @@ jobs:
       LOG_RETENTION_IN_DAYS: ${{ inputs.log_retention_in_days != '' && inputs.log_retention_in_days || vars.LOG_RETENTION_IN_DAYS || '7' }}
       METRICS_NAMESPACE: ${{ inputs.metrics_namespace != '' && inputs.metrics_namespace || vars.METRICS_NAMESPACE || 'Workshop/OrderProcessing' }}
       OTEL_MODE: ${{ inputs.otel_mode != '' && inputs.otel_mode || vars.OTEL_MODE || 'code' }}
-      OTEL_EXPORT_STRATEGY: ${{ inputs.otel_export_strategy != '' && inputs.otel_export_strategy || vars.OTEL_EXPORT_STRATEGY || 'collector' }}
+      OTEL_EXPORT_STRATEGY: ${{ inputs.otel_export_strategy != '' && inputs.otel_export_strategy || vars.OTEL_EXPORT_STRATEGY || 'direct' }}
       OTEL_COLLECTOR_ENDPOINT: ${{ inputs.otel_collector_endpoint != '' && inputs.otel_collector_endpoint || vars.OTEL_COLLECTOR_ENDPOINT || '' }}
       OTEL_COLLECTOR_TRACES_ENDPOINT: ${{ inputs.otel_collector_traces_endpoint != '' && inputs.otel_collector_traces_endpoint || vars.OTEL_COLLECTOR_TRACES_ENDPOINT || '' }}
       OTEL_COLLECTOR_METRICS_ENDPOINT: ${{ inputs.otel_collector_metrics_endpoint != '' && inputs.otel_collector_metrics_endpoint || vars.OTEL_COLLECTOR_METRICS_ENDPOINT || '' }}
