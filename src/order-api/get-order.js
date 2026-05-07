@@ -1,8 +1,17 @@
+require("../shared/otel-bootstrap");
+
 const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
 const { DynamoDBDocumentClient, GetCommand } = require("@aws-sdk/lib-dynamodb");
 const response = require("../shared/response");
 const logger = require("../shared/logger");
-const { createHttpContext, durationMs, emitMetric } = require("../shared/observability");
+const {
+  addSpanEvent,
+  createHttpContext,
+  durationMs,
+  emitMetric,
+  recordException,
+  setSpanAttributes,
+} = require("../shared/observability");
 
 const dynamoClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const ORDERS_TABLE_NAME = process.env.ORDERS_TABLE_NAME;
@@ -19,10 +28,17 @@ exports.handler = async (event, context) => {
   };
   const orderId = event.pathParameters?.orderId;
 
+  setSpanAttributes({
+    "app.order_id": orderId,
+  });
+
   if (!orderId) {
     emitMetric("GetOrderErrors", 1, {
       service: "order-api",
       operation: "get-order",
+      attributes: {
+        "error.type": "ValidationError",
+      },
       properties: {
         reason: "missing-order-id",
       },
@@ -43,9 +59,15 @@ exports.handler = async (event, context) => {
       emitMetric("OrdersNotFound", 1, {
         service: "order-api",
         operation: "get-order",
+        attributes: {
+          "app.order_lookup_result": "NOT_FOUND",
+        },
         properties: {
           orderId,
         },
+      });
+      addSpanEvent("order.lookup.not_found", {
+        "app.order_id": orderId,
       });
       return response.notFound({ message: "Order not found" }, responseHeaders);
     }
@@ -60,14 +82,25 @@ exports.handler = async (event, context) => {
     emitMetric("OrdersRead", 1, {
       service: "order-api",
       operation: "get-order",
+      attributes: {
+        "app.order_status": result.Item.status,
+      },
       properties: {
         orderId,
         status: result.Item.status,
       },
     });
+    addSpanEvent("order.retrieved", {
+      "app.order_id": orderId,
+      "app.order_status": result.Item.status,
+    });
 
     return response.ok(result.Item, responseHeaders);
   } catch (error) {
+    recordException(error, {
+      "app.operation": "get-order",
+    });
+
     log.error("Get order failed", {
       orderId,
       errorName: error.name,
@@ -77,6 +110,9 @@ exports.handler = async (event, context) => {
     emitMetric("GetOrderErrors", 1, {
       service: "order-api",
       operation: "get-order",
+      attributes: {
+        "error.type": error.name,
+      },
       properties: {
         orderId,
         errorName: error.name,

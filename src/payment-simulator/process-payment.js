@@ -1,5 +1,14 @@
+require("../shared/otel-bootstrap");
+
 const logger = require("../shared/logger");
-const { createInvocationContext, durationMs, emitMetric } = require("../shared/observability");
+const {
+  addSpanEvent,
+  createInvocationContext,
+  durationMs,
+  emitMetric,
+  recordException,
+  setSpanAttributes,
+} = require("../shared/observability");
 
 const FAILURE_MODE = process.env.PAYMENT_FAILURE_MODE || "none";
 
@@ -13,6 +22,10 @@ exports.handler = async (event, context) => {
   );
   const orderId = event.orderId;
   const totalAmount = event.totalAmount;
+
+  setSpanAttributes({
+    "app.order_id": orderId,
+  });
 
   log.info("Payment simulation requested", {
     totalAmount,
@@ -53,10 +66,16 @@ exports.handler = async (event, context) => {
     emitMetric("PaymentSimulationErrors", 1, {
       service: "payment-simulator",
       operation: "process-payment",
+      attributes: {
+        "error.type": error.name,
+      },
       properties: {
         orderId,
         errorName: error.name,
       },
+    });
+    recordException(error, {
+      "app.operation": "process-payment",
     });
 
     throw error;
@@ -70,6 +89,9 @@ function buildPaymentResult(orderId, paymentStatus, startTime) {
     service: "payment-simulator",
     operation: "process-payment",
     unit: "Milliseconds",
+    attributes: {
+      "app.payment_status": paymentStatus,
+    },
     properties: {
       orderId,
       paymentStatus,
@@ -78,10 +100,17 @@ function buildPaymentResult(orderId, paymentStatus, startTime) {
   emitMetric("PaymentsSimulated", 1, {
     service: "payment-simulator",
     operation: "process-payment",
+    attributes: {
+      "app.payment_status": paymentStatus,
+    },
     properties: {
       orderId,
       paymentStatus,
     },
+  });
+  addSpanEvent("payment.simulated", {
+    "app.order_id": orderId,
+    "app.payment_status": paymentStatus,
   });
 
   return {

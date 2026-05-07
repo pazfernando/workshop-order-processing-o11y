@@ -1,3 +1,5 @@
+require("../shared/otel-bootstrap");
+
 const crypto = require("node:crypto");
 const { EventBridgeClient, PutEventsCommand } = require("@aws-sdk/client-eventbridge");
 const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
@@ -6,7 +8,14 @@ const response = require("../shared/response");
 const logger = require("../shared/logger");
 const { AppError, ValidationError } = require("../shared/errors");
 const { validateOrderPayload, calculateTotalAmount } = require("../shared/validation");
-const { createHttpContext, durationMs, emitMetric } = require("../shared/observability");
+const {
+  addSpanEvent,
+  createHttpContext,
+  durationMs,
+  emitMetric,
+  recordException,
+  setSpanAttributes,
+} = require("../shared/observability");
 
 const eventBridgeClient = new EventBridgeClient({});
 const dynamoClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -45,6 +54,10 @@ exports.handler = async (event, context) => {
       createdAt: now,
       updatedAt: now,
     };
+
+    setSpanAttributes({
+      "app.order_id": orderId,
+    });
 
     await dynamoClient.send(
       new PutCommand({
@@ -96,6 +109,9 @@ exports.handler = async (event, context) => {
     emitMetric("OrdersCreated", 1, {
       service: "order-api",
       operation: "create-order",
+      attributes: {
+        "app.order_status": "PENDING",
+      },
       properties: {
         orderId,
         correlationId: observabilityContext.correlationId,
@@ -108,6 +124,10 @@ exports.handler = async (event, context) => {
       properties: {
         orderId,
       },
+    });
+    addSpanEvent("order.created", {
+      "app.order_id": orderId,
+      "app.order_status": "PENDING",
     });
 
     return response.created({ orderId, status: "PENDING" }, responseHeaders);
@@ -147,6 +167,10 @@ async function markOrderAsFailed(orderId, failureReason) {
 function handleError(error, log, startTime, responseHeaders) {
   const latencyMs = durationMs(startTime);
 
+  recordException(error, {
+    "app.operation": "create-order",
+  });
+
   log.error("Create order failed", {
     errorName: error.name,
     errorMessage: error.message,
@@ -156,6 +180,9 @@ function handleError(error, log, startTime, responseHeaders) {
   emitMetric("CreateOrderErrors", 1, {
     service: "order-api",
     operation: "create-order",
+    attributes: {
+      "error.type": error.name,
+    },
     properties: {
       errorName: error.name,
     },

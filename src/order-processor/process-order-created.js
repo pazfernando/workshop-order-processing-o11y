@@ -1,3 +1,5 @@
+require("../shared/otel-bootstrap");
+
 const { LambdaClient, InvokeCommand } = require("@aws-sdk/client-lambda");
 const { ConditionalCheckFailedException, DynamoDBClient } = require("@aws-sdk/client-dynamodb");
 const {
@@ -6,7 +8,14 @@ const {
   UpdateCommand,
 } = require("@aws-sdk/lib-dynamodb");
 const logger = require("../shared/logger");
-const { createEventContext, durationMs, emitMetric } = require("../shared/observability");
+const {
+  addSpanEvent,
+  createEventContext,
+  durationMs,
+  emitMetric,
+  recordException,
+  setSpanAttributes,
+} = require("../shared/observability");
 
 const lambdaClient = new LambdaClient({});
 const dynamoClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -24,6 +33,10 @@ exports.handler = async (event, context) => {
   const log = logger.createLogger(observabilityContext);
   const orderId = detail.orderId;
 
+  setSpanAttributes({
+    "app.order_id": orderId,
+  });
+
   log.info("Order processor received event", { records: event.detail ? 1 : 0 });
 
   if (!orderId) {
@@ -31,6 +44,9 @@ exports.handler = async (event, context) => {
     emitMetric("OrderProcessorIgnoredEvents", 1, {
       service: "order-processor",
       operation: "process-order-created",
+      attributes: {
+        "app.ignore_reason": "missing-order-id",
+      },
       properties: {
         reason: "missing-order-id",
       },
@@ -54,6 +70,9 @@ exports.handler = async (event, context) => {
     emitMetric("OrdersProcessed", 1, {
       service: "order-processor",
       operation: "process-order-created",
+      attributes: {
+        "app.payment_status": paymentResult.paymentStatus,
+      },
       properties: {
         orderId,
         paymentStatus: paymentResult.paymentStatus,
@@ -67,6 +86,10 @@ exports.handler = async (event, context) => {
         orderId,
       },
     });
+    addSpanEvent("order.processed", {
+      "app.order_id": orderId,
+      "app.payment_status": paymentResult.paymentStatus,
+    });
   } catch (error) {
     if (error instanceof ConditionalCheckFailedException) {
       const currentOrder = await getOrder(orderId);
@@ -77,13 +100,24 @@ exports.handler = async (event, context) => {
       emitMetric("OrderProcessorDuplicateEvents", 1, {
         service: "order-processor",
         operation: "process-order-created",
+        attributes: {
+          "app.order_status": currentOrder?.status,
+        },
         properties: {
           orderId,
           currentStatus: currentOrder?.status,
         },
       });
+      addSpanEvent("order.processing.skipped", {
+        "app.order_id": orderId,
+        "app.order_status": currentOrder?.status,
+      });
       return;
     }
+
+    recordException(error, {
+      "app.operation": "process-order-created",
+    });
 
     log.error("Order processing failed", {
       orderId,
@@ -94,6 +128,9 @@ exports.handler = async (event, context) => {
     emitMetric("OrderProcessorErrors", 1, {
       service: "order-processor",
       operation: "process-order-created",
+      attributes: {
+        "error.type": error.name,
+      },
       properties: {
         orderId,
         errorName: error.name,

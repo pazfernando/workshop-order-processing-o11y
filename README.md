@@ -12,6 +12,7 @@ Caso base para talleres técnicos senior sobre arquitectura serverless, resilien
 - CloudWatch Logs concentra logs JSON de cada Lambda y access logs del API.
 - CloudWatch Metrics recibe métricas custom vía Embedded Metric Format (EMF) sin librerías adicionales.
 - AWS X-Ray queda habilitado en las Lambdas para ver latencia y errores por función.
+- La base de instrumentación compartida vive en `src/shared/observability.js` y la convención del repositorio es `otel-first`, preservando compatibilidad temporal con EMF para CloudWatch.
 
 ```mermaid
 flowchart LR
@@ -38,6 +39,7 @@ flowchart LR
 
 - Correlación end-to-end con `x-correlation-id`, `requestId`, `awsRequestId` y `orderId`.
 - Propagación de `correlationId` desde `POST /orders` hacia EventBridge, `order-processor` y `payment-simulator`.
+- Base de instrumentación OpenTelemetry en código, compatible con ADOT Lambda layer y con exporters OTLP cuando se configuren.
 - Logs JSON consistentes por servicio con contexto reutilizable.
 - Métricas EMF para creación de órdenes, lecturas, órdenes procesadas, errores y latencia del simulador de pago.
 - Retención explícita de CloudWatch Logs configurable desde Terraform.
@@ -84,6 +86,13 @@ Nota: esta solución usa API Gateway HTTP API. Esa variante no soporta tracing a
 - `PAYMENT_FAILURE_MODE`: `none`, `always_fail`, `random_fail`, `slow_response`, `random_reject`
 - `LOG_RETENTION_IN_DAYS`: retención de logs en CloudWatch. Default Terraform: `7`
 - `METRICS_NAMESPACE`: namespace de métricas EMF. Default Terraform: `Workshop/OrderProcessing`
+- `OBSERVABILITY_OTEL_ENABLED`: habilita bootstrap OTel en código cuando no se usa un layer externo. Default implícito: `true`
+- `OBSERVABILITY_EMF_COMPATIBILITY_MODE`: mantiene emisión EMF en paralelo para CloudWatch mientras conviven ambos enfoques. Default implícito: `true`
+- `OTEL_SERVICE_NAME`: override opcional del `service.name` de OpenTelemetry
+- `OTEL_EXPORTER_OTLP_ENDPOINT`: endpoint base OTLP para exportar trazas y métricas a un Collector o backend compatible
+- `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`: override opcional para trazas
+- `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`: override opcional para métricas
+- `OTEL_METRIC_EXPORT_INTERVAL_MS`: intervalo de exportación de métricas OTel en milisegundos. Default en código: `10000`
 - `CREATE_OBSERVABILITY_DASHBOARD`: crea dashboard de CloudWatch. Default Terraform: `true`
 - `CREATE_OBSERVABILITY_ALARMS`: crea alarmas de CloudWatch. Default Terraform: `true`
 - `API_5XX_ALARM_THRESHOLD`: umbral de 5xx por minuto para la alarma del API. Default Terraform: `1`
