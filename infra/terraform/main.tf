@@ -38,7 +38,14 @@ locals {
   get_order_function_name         = "${local.name_prefix}-get-order"
   payment_simulator_function_name = "${local.name_prefix}-payment-simulator"
   order_processor_function_name   = "${local.name_prefix}-order-processor"
-  event_bus_arn                   = "arn:${data.aws_partition.current.partition}:events:${var.aws_region}:${data.aws_caller_identity.current.account_id}:event-bus/default"
+  api_access_log_group_name       = "/aws/apigateway/${local.name_prefix}-http-api-access"
+  lambda_log_group_names = {
+    create_order      = "/aws/lambda/${local.create_order_function_name}"
+    get_order         = "/aws/lambda/${local.get_order_function_name}"
+    payment_simulator = "/aws/lambda/${local.payment_simulator_function_name}"
+    order_processor   = "/aws/lambda/${local.order_processor_function_name}"
+  }
+  event_bus_arn = "arn:${data.aws_partition.current.partition}:events:${var.aws_region}:${data.aws_caller_identity.current.account_id}:event-bus/default"
 }
 
 resource "aws_dynamodb_table" "orders" {
@@ -61,6 +68,23 @@ resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.orders.id
   name        = "$default"
   auto_deploy = true
+
+  access_log_settings {
+    destination_arn = aws_cloudwatch_log_group.api_access.arn
+    format = jsonencode({
+      requestId         = "$context.requestId"
+      apiId             = "$context.apiId"
+      routeKey          = "$context.routeKey"
+      status            = "$context.status"
+      protocol          = "$context.protocol"
+      responseLength    = "$context.responseLength"
+      integrationError  = "$context.integrationErrorMessage"
+      integrationStatus = "$context.integrationStatus"
+      sourceIp          = "$context.identity.sourceIp"
+      userAgent         = "$context.identity.userAgent"
+      requestTime       = "$context.requestTime"
+    })
+  }
 }
 
 data "aws_iam_policy_document" "lambda_assume_role" {
@@ -99,9 +123,19 @@ resource "aws_iam_role_policy_attachment" "create_order_logs" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+resource "aws_iam_role_policy_attachment" "create_order_xray" {
+  role       = aws_iam_role.create_order.name
+  policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
+}
+
 resource "aws_iam_role_policy_attachment" "get_order_logs" {
   role       = aws_iam_role.get_order.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "get_order_xray" {
+  role       = aws_iam_role.get_order.name
+  policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
 }
 
 resource "aws_iam_role_policy_attachment" "payment_simulator_logs" {
@@ -109,9 +143,44 @@ resource "aws_iam_role_policy_attachment" "payment_simulator_logs" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+resource "aws_iam_role_policy_attachment" "payment_simulator_xray" {
+  role       = aws_iam_role.payment_simulator.name
+  policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
+}
+
 resource "aws_iam_role_policy_attachment" "order_processor_logs" {
   role       = aws_iam_role.order_processor.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "order_processor_xray" {
+  role       = aws_iam_role.order_processor.name
+  policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
+}
+
+resource "aws_cloudwatch_log_group" "api_access" {
+  name              = local.api_access_log_group_name
+  retention_in_days = var.log_retention_in_days
+}
+
+resource "aws_cloudwatch_log_group" "create_order" {
+  name              = local.lambda_log_group_names.create_order
+  retention_in_days = var.log_retention_in_days
+}
+
+resource "aws_cloudwatch_log_group" "get_order" {
+  name              = local.lambda_log_group_names.get_order
+  retention_in_days = var.log_retention_in_days
+}
+
+resource "aws_cloudwatch_log_group" "payment_simulator" {
+  name              = local.lambda_log_group_names.payment_simulator
+  retention_in_days = var.log_retention_in_days
+}
+
+resource "aws_cloudwatch_log_group" "order_processor" {
+  name              = local.lambda_log_group_names.order_processor
+  retention_in_days = var.log_retention_in_days
 }
 
 data "aws_iam_policy_document" "create_order" {
@@ -179,15 +248,25 @@ resource "aws_lambda_function" "create_order" {
   timeout          = 10
   memory_size      = 256
 
+  tracing_config {
+    mode = "Active"
+  }
+
   environment {
     variables = {
       ORDERS_TABLE_NAME = aws_dynamodb_table.orders.name
       EVENT_BUS_NAME    = "default"
       LOG_LEVEL         = "INFO"
+      METRICS_NAMESPACE = var.metrics_namespace
+      SERVICE_NAME      = "order-api"
     }
   }
 
-  depends_on = [aws_iam_role_policy_attachment.create_order_logs]
+  depends_on = [
+    aws_cloudwatch_log_group.create_order,
+    aws_iam_role_policy_attachment.create_order_logs,
+    aws_iam_role_policy_attachment.create_order_xray
+  ]
 }
 
 resource "aws_lambda_function" "get_order" {
@@ -200,15 +279,25 @@ resource "aws_lambda_function" "get_order" {
   timeout          = 10
   memory_size      = 256
 
+  tracing_config {
+    mode = "Active"
+  }
+
   environment {
     variables = {
       ORDERS_TABLE_NAME = aws_dynamodb_table.orders.name
       EVENT_BUS_NAME    = "default"
       LOG_LEVEL         = "INFO"
+      METRICS_NAMESPACE = var.metrics_namespace
+      SERVICE_NAME      = "order-api"
     }
   }
 
-  depends_on = [aws_iam_role_policy_attachment.get_order_logs]
+  depends_on = [
+    aws_cloudwatch_log_group.get_order,
+    aws_iam_role_policy_attachment.get_order_logs,
+    aws_iam_role_policy_attachment.get_order_xray
+  ]
 }
 
 resource "aws_lambda_function" "payment_simulator" {
@@ -221,16 +310,26 @@ resource "aws_lambda_function" "payment_simulator" {
   timeout          = 15
   memory_size      = 256
 
+  tracing_config {
+    mode = "Active"
+  }
+
   environment {
     variables = {
       ORDERS_TABLE_NAME    = aws_dynamodb_table.orders.name
       EVENT_BUS_NAME       = "default"
       LOG_LEVEL            = "INFO"
+      METRICS_NAMESPACE    = var.metrics_namespace
       PAYMENT_FAILURE_MODE = var.payment_failure_mode
+      SERVICE_NAME         = "payment-simulator"
     }
   }
 
-  depends_on = [aws_iam_role_policy_attachment.payment_simulator_logs]
+  depends_on = [
+    aws_cloudwatch_log_group.payment_simulator,
+    aws_iam_role_policy_attachment.payment_simulator_logs,
+    aws_iam_role_policy_attachment.payment_simulator_xray
+  ]
 }
 
 resource "aws_lambda_function" "order_processor" {
@@ -243,18 +342,26 @@ resource "aws_lambda_function" "order_processor" {
   timeout          = 10
   memory_size      = 256
 
+  tracing_config {
+    mode = "Active"
+  }
+
   environment {
     variables = {
       ORDERS_TABLE_NAME               = aws_dynamodb_table.orders.name
       EVENT_BUS_NAME                  = "default"
       LOG_LEVEL                       = "INFO"
+      METRICS_NAMESPACE               = var.metrics_namespace
       PAYMENT_SIMULATOR_FUNCTION_NAME = aws_lambda_function.payment_simulator.function_name
+      SERVICE_NAME                    = "order-processor"
     }
   }
 
   depends_on = [
+    aws_cloudwatch_log_group.order_processor,
     aws_iam_role_policy.order_processor,
-    aws_iam_role_policy_attachment.order_processor_logs
+    aws_iam_role_policy_attachment.order_processor_logs,
+    aws_iam_role_policy_attachment.order_processor_xray
   ]
 }
 

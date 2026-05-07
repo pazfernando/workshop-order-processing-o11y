@@ -1,18 +1,18 @@
-function json(statusCode, body) {
+function json(statusCode, body, headers = {}) {
   return {
     statusCode,
     headers: {
       "Content-Type": "application/json",
+      ...headers,
     },
     body: JSON.stringify(body),
   };
 }
 
 module.exports = {
-  ok: (body) => json(200, body),
-  created: (body) => json(201, body),
-  badRequest: (body) => json(400, body),
-  notFound: (body) => json(404, body),
-  internalError: (body) => json(500, body),
+  ok: (body, headers) => json(200, body, headers),
+  created: (body, headers) => json(201, body, headers),
+  badRequest: (body, headers) => json(400, body, headers),
+  notFound: (body, headers) => json(404, body, headers),
+  internalError: (body, headers) => json(500, body, headers),
 };
-

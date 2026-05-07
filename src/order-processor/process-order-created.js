@@ -6,6 +6,7 @@ const {
   UpdateCommand,
 } = require("@aws-sdk/lib-dynamodb");
 const logger = require("../shared/logger");
+const { createEventContext, durationMs, emitMetric } = require("../shared/observability");
 
 const lambdaClient = new LambdaClient({});
 const dynamoClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -13,40 +14,90 @@ const dynamoClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const ORDERS_TABLE_NAME = process.env.ORDERS_TABLE_NAME;
 const PAYMENT_SIMULATOR_FUNCTION_NAME = process.env.PAYMENT_SIMULATOR_FUNCTION_NAME;
 
-exports.handler = async (event) => {
-  logger.info("Order processor received event", { records: event.detail ? 1 : 0, eventId: event.id });
-
+exports.handler = async (event, context) => {
+  const startTime = Date.now();
   const detail = event.detail || {};
+  const observabilityContext = createEventContext(event, context, {
+    service: "order-processor",
+    operation: "process-order-created",
+  });
+  const log = logger.createLogger(observabilityContext);
   const orderId = detail.orderId;
 
+  log.info("Order processor received event", { records: event.detail ? 1 : 0 });
+
   if (!orderId) {
-    logger.warn("Event without orderId was ignored", { detail });
+    log.warn("Event without orderId was ignored", { detail });
+    emitMetric("OrderProcessorIgnoredEvents", 1, {
+      service: "order-processor",
+      operation: "process-order-created",
+      properties: {
+        reason: "missing-order-id",
+      },
+    });
     return;
   }
 
   try {
     const order = await moveOrderToProcessing(orderId);
-    const paymentResult = await invokePaymentSimulator(order);
+    const paymentStartTime = Date.now();
+    const paymentResult = await invokePaymentSimulator(order, observabilityContext);
+    const paymentLatencyMs = durationMs(paymentStartTime);
     await finalizeOrder(orderId, paymentResult);
 
-    logger.info("Order processed successfully", {
+    log.info("Order processed successfully", {
       orderId,
       finalStatus: paymentResult.paymentStatus,
+      paymentLatencyMs,
+      processingLatencyMs: durationMs(startTime),
+    });
+    emitMetric("OrdersProcessed", 1, {
+      service: "order-processor",
+      operation: "process-order-created",
+      properties: {
+        orderId,
+        paymentStatus: paymentResult.paymentStatus,
+      },
+    });
+    emitMetric("PaymentInvocationLatencyMs", paymentLatencyMs, {
+      service: "order-processor",
+      operation: "process-order-created",
+      unit: "Milliseconds",
+      properties: {
+        orderId,
+      },
     });
   } catch (error) {
     if (error instanceof ConditionalCheckFailedException) {
       const currentOrder = await getOrder(orderId);
-      logger.info("Duplicate or already processed event skipped", {
+      log.info("Duplicate or already processed event skipped", {
         orderId,
         currentStatus: currentOrder?.status,
+      });
+      emitMetric("OrderProcessorDuplicateEvents", 1, {
+        service: "order-processor",
+        operation: "process-order-created",
+        properties: {
+          orderId,
+          currentStatus: currentOrder?.status,
+        },
       });
       return;
     }
 
-    logger.error("Order processing failed", {
+    log.error("Order processing failed", {
       orderId,
       errorName: error.name,
       errorMessage: error.message,
+      processingLatencyMs: durationMs(startTime),
+    });
+    emitMetric("OrderProcessorErrors", 1, {
+      service: "order-processor",
+      operation: "process-order-created",
+      properties: {
+        orderId,
+        errorName: error.name,
+      },
     });
 
     await failOrder(orderId, error.message);
@@ -83,7 +134,7 @@ async function moveOrderToProcessing(orderId) {
   return currentOrder;
 }
 
-async function invokePaymentSimulator(order) {
+async function invokePaymentSimulator(order, observabilityContext) {
   const invokeResult = await lambdaClient.send(
     new InvokeCommand({
       FunctionName: PAYMENT_SIMULATOR_FUNCTION_NAME,
@@ -93,6 +144,8 @@ async function invokePaymentSimulator(order) {
           orderId: order.orderId,
           totalAmount: order.totalAmount,
           currency: order.currency,
+          correlationId: observabilityContext.correlationId,
+          requestId: observabilityContext.requestId,
         })
       ),
     })
@@ -176,4 +229,3 @@ async function getOrder(orderId) {
 
   return result.Item;
 }
-

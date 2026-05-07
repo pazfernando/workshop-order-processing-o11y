@@ -17,6 +17,16 @@ on:
           - random_fail
           - slow_response
           - random_reject
+      log_retention_in_days:
+        description: CloudWatch log retention in days
+        required: false
+        default: "7"
+        type: string
+      metrics_namespace:
+        description: CloudWatch metrics namespace for EMF
+        required: false
+        default: Workshop/OrderProcessing
+        type: string
 
 jobs:
   deploy:
@@ -31,6 +41,8 @@ jobs:
       STACK_NAME: ${{ vars.STACK_NAME != '' && vars.STACK_NAME || 'observability-business-case' }}
       RESOURCE_PREFIX: ${{ vars.RESOURCE_PREFIX != '' && vars.RESOURCE_PREFIX || 'aws-dev' }}
       PAYMENT_FAILURE_MODE: ${{ inputs.payment_failure_mode != '' && inputs.payment_failure_mode || vars.PAYMENT_FAILURE_MODE || 'none' }}
+      LOG_RETENTION_IN_DAYS: ${{ inputs.log_retention_in_days != '' && inputs.log_retention_in_days || vars.LOG_RETENTION_IN_DAYS || '7' }}
+      METRICS_NAMESPACE: ${{ inputs.metrics_namespace != '' && inputs.metrics_namespace || vars.METRICS_NAMESPACE || 'Workshop/OrderProcessing' }}
       TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
       TF_STATE_KEY: ${{ vars.TF_STATE_KEY }}
 
@@ -160,6 +172,11 @@ jobs:
           ORDER_PROCESSOR_FUNCTION_NAME="${EFFECTIVE_STACK_NAME}-order-processor"
           API_NAME="${EFFECTIVE_STACK_NAME}-http-api"
           EVENT_RULE_NAME="${EFFECTIVE_STACK_NAME}-order-created"
+          API_ACCESS_LOG_GROUP_NAME="/aws/apigateway/${EFFECTIVE_STACK_NAME}-http-api-access"
+          CREATE_ORDER_LOG_GROUP_NAME="/aws/lambda/${CREATE_ORDER_FUNCTION_NAME}"
+          GET_ORDER_LOG_GROUP_NAME="/aws/lambda/${GET_ORDER_FUNCTION_NAME}"
+          PAYMENT_SIMULATOR_LOG_GROUP_NAME="/aws/lambda/${PAYMENT_SIMULATOR_FUNCTION_NAME}"
+          ORDER_PROCESSOR_LOG_GROUP_NAME="/aws/lambda/${ORDER_PROCESSOR_FUNCTION_NAME}"
 
           for ITEM in \
             "aws_lambda_function.create_order:${CREATE_ORDER_FUNCTION_NAME}" \
@@ -172,6 +189,21 @@ jobs:
 
             if aws lambda get-function --function-name "$FUNCTION_NAME" >/dev/null 2>&1; then
               tf_import_if_missing "$ADDRESS" "$FUNCTION_NAME"
+            fi
+          done
+
+          for ITEM in \
+            "aws_cloudwatch_log_group.api_access:${API_ACCESS_LOG_GROUP_NAME}" \
+            "aws_cloudwatch_log_group.create_order:${CREATE_ORDER_LOG_GROUP_NAME}" \
+            "aws_cloudwatch_log_group.get_order:${GET_ORDER_LOG_GROUP_NAME}" \
+            "aws_cloudwatch_log_group.payment_simulator:${PAYMENT_SIMULATOR_LOG_GROUP_NAME}" \
+            "aws_cloudwatch_log_group.order_processor:${ORDER_PROCESSOR_LOG_GROUP_NAME}"
+          do
+            ADDRESS="${ITEM%%:*}"
+            LOG_GROUP_NAME="${ITEM#*:}"
+
+            if aws logs describe-log-groups --log-group-name-prefix "$LOG_GROUP_NAME" --query "logGroups[?logGroupName=='${LOG_GROUP_NAME}'].logGroupName | [0]" --output text 2>/dev/null | grep -q "$LOG_GROUP_NAME"; then
+              tf_import_if_missing "$ADDRESS" "$LOG_GROUP_NAME"
             fi
           done
 
@@ -225,7 +257,9 @@ jobs:
             -var="aws_region=${AWS_REGION}" \
             -var="stack_name=${STACK_NAME}" \
             -var="resource_prefix=${RESOURCE_PREFIX}" \
-            -var="payment_failure_mode=${PAYMENT_FAILURE_MODE}"
+            -var="payment_failure_mode=${PAYMENT_FAILURE_MODE}" \
+            -var="log_retention_in_days=${LOG_RETENTION_IN_DAYS}" \
+            -var="metrics_namespace=${METRICS_NAMESPACE}"
 
       - name: Show API URL
         run: terraform -chdir=infra/terraform output -raw api_base_url

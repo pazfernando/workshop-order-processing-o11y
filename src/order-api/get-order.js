@@ -2,15 +2,32 @@ const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
 const { DynamoDBDocumentClient, GetCommand } = require("@aws-sdk/lib-dynamodb");
 const response = require("../shared/response");
 const logger = require("../shared/logger");
+const { createHttpContext, durationMs, emitMetric } = require("../shared/observability");
 
 const dynamoClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const ORDERS_TABLE_NAME = process.env.ORDERS_TABLE_NAME;
 
-exports.handler = async (event) => {
+exports.handler = async (event, context) => {
+  const startTime = Date.now();
+  const observabilityContext = createHttpContext(event, context, {
+    service: "order-api",
+    operation: "get-order",
+  });
+  const log = logger.createLogger(observabilityContext);
+  const responseHeaders = {
+    "x-correlation-id": observabilityContext.correlationId,
+  };
   const orderId = event.pathParameters?.orderId;
 
   if (!orderId) {
-    return response.badRequest({ message: "orderId is required" });
+    emitMetric("GetOrderErrors", 1, {
+      service: "order-api",
+      operation: "get-order",
+      properties: {
+        reason: "missing-order-id",
+      },
+    });
+    return response.badRequest({ message: "orderId is required" }, responseHeaders);
   }
 
   try {
@@ -22,18 +39,50 @@ exports.handler = async (event) => {
     );
 
     if (!result.Item) {
-      return response.notFound({ message: "Order not found" });
+      log.warn("Order not found", { orderId, latencyMs: durationMs(startTime) });
+      emitMetric("OrdersNotFound", 1, {
+        service: "order-api",
+        operation: "get-order",
+        properties: {
+          orderId,
+        },
+      });
+      return response.notFound({ message: "Order not found" }, responseHeaders);
     }
 
-    return response.ok(result.Item);
+    const latencyMs = durationMs(startTime);
+
+    log.info("Order retrieved", {
+      orderId,
+      status: result.Item.status,
+      latencyMs,
+    });
+    emitMetric("OrdersRead", 1, {
+      service: "order-api",
+      operation: "get-order",
+      properties: {
+        orderId,
+        status: result.Item.status,
+      },
+    });
+
+    return response.ok(result.Item, responseHeaders);
   } catch (error) {
-    logger.error("Get order failed", {
+    log.error("Get order failed", {
       orderId,
       errorName: error.name,
       errorMessage: error.message,
+      latencyMs: durationMs(startTime),
+    });
+    emitMetric("GetOrderErrors", 1, {
+      service: "order-api",
+      operation: "get-order",
+      properties: {
+        orderId,
+        errorName: error.name,
+      },
     });
 
-    return response.internalError({ message: "Internal server error" });
+    return response.internalError({ message: "Internal server error" }, responseHeaders);
   }
 };
-

@@ -32,3 +32,15 @@ variable "payment_failure_mode" {
     error_message = "payment_failure_mode must be one of: none, always_fail, random_fail, slow_response, random_reject."
   }
 }
+
+variable "log_retention_in_days" {
+  description = "Retention period for CloudWatch log groups."
+  type        = number
+  default     = 7
+}
+
+variable "metrics_namespace" {
+  description = "CloudWatch metrics namespace used by embedded metric format logs."
+  type        = string
+  default     = "Workshop/OrderProcessing"
+}

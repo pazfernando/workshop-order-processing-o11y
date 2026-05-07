@@ -9,6 +9,20 @@ Caso base para talleres técnicos senior sobre arquitectura serverless, resilien
 - Lambda `order-processor` consume el evento, mueve la orden a `PROCESSING`, invoca sincrónicamente al simulador de pago y actualiza el estado final.
 - Lambda `payment-simulator` simula pagos con modos configurables para escenarios de falla.
 - DynamoDB almacena el estado y atributos de la orden.
+- CloudWatch Logs concentra logs JSON de cada Lambda y access logs del API.
+- CloudWatch Metrics recibe métricas custom vía Embedded Metric Format (EMF) sin librerías adicionales.
+- AWS X-Ray queda habilitado en las Lambdas para ver latencia y errores por función.
+
+## Observabilidad implementada
+
+- Correlación end-to-end con `x-correlation-id`, `requestId`, `awsRequestId` y `orderId`.
+- Propagación de `correlationId` desde `POST /orders` hacia EventBridge, `order-processor` y `payment-simulator`.
+- Logs JSON consistentes por servicio con contexto reutilizable.
+- Métricas EMF para creación de órdenes, lecturas, órdenes procesadas, errores y latencia del simulador de pago.
+- Retención explícita de CloudWatch Logs configurable desde Terraform.
+- Access logs para API Gateway HTTP API.
+
+Nota: esta solución usa API Gateway HTTP API. Esa variante no soporta tracing activo con X-Ray como sí ocurre con REST API, así que el API se observa mediante access logs; el tracing queda habilitado en las Lambdas.
 
 ## Estructura
 
@@ -45,6 +59,8 @@ Caso base para talleres técnicos senior sobre arquitectura serverless, resilien
 - `RESOURCE_PREFIX`: prefijo general opcional para namespacing de recursos. Default en CI/CD: el nombre del environment
 - `AWS_REGION`: región de despliegue. Default: `us-east-1`
 - `PAYMENT_FAILURE_MODE`: `none`, `always_fail`, `random_fail`, `slow_response`, `random_reject`
+- `LOG_RETENTION_IN_DAYS`: retención de logs en CloudWatch. Default Terraform: `7`
+- `METRICS_NAMESPACE`: namespace de métricas EMF. Default Terraform: `Workshop/OrderProcessing`
 - `TF_STATE_BUCKET`: opcional. Si no se define en GitHub Actions, el workflow crea uno automáticamente
 - `TF_STATE_KEY`: opcional. Default en CI/CD: `${environment}/${STACK_NAME}.tfstate`
 
@@ -73,6 +89,8 @@ export STACK_NAME="observability-business-case"
 export RESOURCE_PREFIX="aws-dev"
 export AWS_REGION="us-east-1"
 export PAYMENT_FAILURE_MODE="none"
+export LOG_RETENTION_IN_DAYS="7"
+export METRICS_NAMESPACE="Workshop/OrderProcessing"
 ```
 
 Si quieres mantener estado remoto también localmente:
@@ -113,7 +131,9 @@ terraform -chdir=infra/terraform apply \
   -var="aws_region=${AWS_REGION}" \
   -var="stack_name=${STACK_NAME}" \
   -var="resource_prefix=${RESOURCE_PREFIX}" \
-  -var="payment_failure_mode=${PAYMENT_FAILURE_MODE}"
+  -var="payment_failure_mode=${PAYMENT_FAILURE_MODE}" \
+  -var="log_retention_in_days=${LOG_RETENTION_IN_DAYS}" \
+  -var="metrics_namespace=${METRICS_NAMESPACE}"
 ```
 
 ### 6. Obtener la URL del API
@@ -137,7 +157,9 @@ terraform -chdir=infra/terraform destroy \
   -var="aws_region=${AWS_REGION}" \
   -var="stack_name=${STACK_NAME}" \
   -var="resource_prefix=${RESOURCE_PREFIX}" \
-  -var="payment_failure_mode=${PAYMENT_FAILURE_MODE}"
+  -var="payment_failure_mode=${PAYMENT_FAILURE_MODE}" \
+  -var="log_retention_in_days=${LOG_RETENTION_IN_DAYS}" \
+  -var="metrics_namespace=${METRICS_NAMESPACE}"
 ```
 
 ## CI/CD con GitHub Actions
@@ -225,6 +247,7 @@ Ejemplo `curl`:
 ```bash
 curl -X POST "${API_BASE_URL}/orders" \
   -H "content-type: application/json" \
+  -H "x-correlation-id: demo-001" \
   --data '{
     "customerId": "customer-001",
     "items": [
@@ -237,6 +260,18 @@ curl -X POST "${API_BASE_URL}/orders" \
     "currency": "USD"
   }'
 ```
+
+## Qué observar en AWS
+
+- CloudWatch Logs:
+  - [infra/terraform/main.tf](/Users/pazfernando/Documents/projects/windsurf/workshop-order-processing/infra/terraform/main.tf) crea log groups dedicados para cada Lambda y para el access log del API.
+  - Busca `correlationId`, `requestId` y `orderId` para seguir la ejecución completa.
+- CloudWatch Metrics:
+  - Namespace por defecto: `Workshop/OrderProcessing`
+  - Métricas esperadas: `OrdersCreated`, `OrdersProcessed`, `OrderProcessorErrors`, `PaymentSimulationLatencyMs`, `CreateOrderLatencyMs`
+- X-Ray:
+  - Revisa los traces de las Lambdas `create-order`, `get-order`, `order-processor` y `payment-simulator`.
+  - El API no emite traces X-Ray por ser HTTP API; usa el access log para ese borde.
 
 Respuesta esperada:
 

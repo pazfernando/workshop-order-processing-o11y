@@ -12,3 +12,8 @@ output "payment_simulator_name" {
   description = "Payment simulator Lambda function name."
   value       = aws_lambda_function.payment_simulator.function_name
 }
+
+output "api_access_log_group_name" {
+  description = "CloudWatch log group for API Gateway access logs."
+  value       = aws_cloudwatch_log_group.api_access.name
+}

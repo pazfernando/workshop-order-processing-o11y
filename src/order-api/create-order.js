@@ -6,6 +6,7 @@ const response = require("../shared/response");
 const logger = require("../shared/logger");
 const { AppError, ValidationError } = require("../shared/errors");
 const { validateOrderPayload, calculateTotalAmount } = require("../shared/validation");
+const { createHttpContext, durationMs, emitMetric } = require("../shared/observability");
 
 const eventBridgeClient = new EventBridgeClient({});
 const dynamoClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -13,7 +14,17 @@ const dynamoClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const ORDERS_TABLE_NAME = process.env.ORDERS_TABLE_NAME;
 const EVENT_BUS_NAME = process.env.EVENT_BUS_NAME || "default";
 
-exports.handler = async (event) => {
+exports.handler = async (event, context) => {
+  const startTime = Date.now();
+  const observabilityContext = createHttpContext(event, context, {
+    service: "order-api",
+    operation: "create-order",
+  });
+  const log = logger.createLogger(observabilityContext);
+  const responseHeaders = {
+    "x-correlation-id": observabilityContext.correlationId,
+  };
+
   try {
     const payload = parseBody(event.body);
     validateOrderPayload(payload);
@@ -30,6 +41,7 @@ exports.handler = async (event) => {
       totalAmount,
       status: "PENDING",
       paymentStatus: "PENDING",
+      correlationId: observabilityContext.correlationId,
       createdAt: now,
       updatedAt: now,
     };
@@ -53,6 +65,8 @@ exports.handler = async (event) => {
               eventType: "OrderCreated",
               eventVersion: "1.0",
               orderId,
+              correlationId: observabilityContext.correlationId,
+              requestId: observabilityContext.requestId,
               customerId: payload.customerId,
               totalAmount,
               currency: payload.currency,
@@ -71,10 +85,34 @@ exports.handler = async (event) => {
       throw new AppError("Order event publication failed", 500, { orderId, failureReason });
     }
 
-    logger.info("Order created", { orderId, customerId: payload.customerId, totalAmount });
-    return response.created({ orderId, status: "PENDING" });
+    const latencyMs = durationMs(startTime);
+
+    log.info("Order created", {
+      orderId,
+      customerId: payload.customerId,
+      totalAmount,
+      latencyMs,
+    });
+    emitMetric("OrdersCreated", 1, {
+      service: "order-api",
+      operation: "create-order",
+      properties: {
+        orderId,
+        correlationId: observabilityContext.correlationId,
+      },
+    });
+    emitMetric("CreateOrderLatencyMs", latencyMs, {
+      service: "order-api",
+      operation: "create-order",
+      unit: "Milliseconds",
+      properties: {
+        orderId,
+      },
+    });
+
+    return response.created({ orderId, status: "PENDING" }, responseHeaders);
   } catch (error) {
-    return handleError(error);
+    return handleError(error, log, startTime, responseHeaders);
   }
 };
 
@@ -106,29 +144,38 @@ async function markOrderAsFailed(orderId, failureReason) {
   );
 }
 
-function handleError(error) {
-  logger.error("Create order failed", {
+function handleError(error, log, startTime, responseHeaders) {
+  const latencyMs = durationMs(startTime);
+
+  log.error("Create order failed", {
     errorName: error.name,
     errorMessage: error.message,
     details: error.details,
+    latencyMs,
+  });
+  emitMetric("CreateOrderErrors", 1, {
+    service: "order-api",
+    operation: "create-order",
+    properties: {
+      errorName: error.name,
+    },
   });
 
   if (error instanceof ValidationError) {
     return response.badRequest({
       message: error.message,
       details: error.details,
-    });
+    }, responseHeaders);
   }
 
   if (error instanceof AppError) {
     return response.internalError({
       message: error.message,
       details: error.details,
-    });
+    }, responseHeaders);
   }
 
   return response.internalError({
     message: "Internal server error",
-  });
+  }, responseHeaders);
 }
-
