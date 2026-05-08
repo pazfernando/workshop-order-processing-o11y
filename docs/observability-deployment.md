@@ -27,7 +27,7 @@ Notas de este repo:
 | Variable | Valores | Qué significa | Cuándo usarlo |
 | :--- | :--- | :--- | :--- |
 | `OTEL_EXPORT_STRATEGY` | `direct` | La Lambda exporta OTLP directo al backend final | Default operativo hoy |
-| `OTEL_EXPORT_STRATEGY` | `collector` | La Lambda exporta OTLP primero a un Collector | Recomendado cuando ya existe Collector |
+| `OTEL_EXPORT_STRATEGY` | `collector` | La Lambda exporta OTLP primero a un Collector | En este repo provisiona la suite EC2 con Alloy |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | URL o vacío | Endpoint base OTLP del backend final | Solo con `direct` |
 | `OTEL_COLLECTOR_ENDPOINT` | URL o vacío | Endpoint base OTLP del Collector | Solo con `collector` |
 
@@ -146,7 +146,6 @@ Mueve el bootstrap fuera del código y centraliza la operación.
 
 | Variable | Valores permitidos | Obligatoria | Recomendado |
 | :--- | :--- | :--- | :--- |
-| `CREATE_OBSERVABILITY_SUITE` | `true`, `false` | No | `false` |
 | `OBSERVABILITY_SUITE_INSTANCE_TYPE` | tipo EC2 válido | No | `t3.small` |
 | `OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB` | entero positivo | No | `20` |
 | `OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS` | lista JSON de CIDRs | No | `["0.0.0.0/0"]` |
@@ -220,7 +219,6 @@ Resultado esperado:
 ### Ejemplo 6: suite EC2 con Alloy + Grafana + Prometheus + Tempo + Loki
 
 ```bash
-export CREATE_OBSERVABILITY_SUITE="true"
 export OBSERVABILITY_SUITE_INSTANCE_TYPE="t3.small"
 export OTEL_EXPORT_STRATEGY="collector"
 export OTEL_COLLECTOR_ENDPOINT=""
@@ -265,6 +263,6 @@ Reglas de validación de observabilidad:
 - si `OTEL_EXPORT_STRATEGY=collector`, `OTEL_COLLECTOR_ENDPOINT` debe existir
 - si `OTEL_EXPORT_STRATEGY=direct` y `OTEL_MODE=adot_layer`, dejar vacíos los endpoints directos hace que Terraform infiera CloudWatch OTLP por señal
 - si `OTEL_EXPORT_STRATEGY=direct` y `OTEL_MODE=code`, no uses endpoints OTLP de CloudWatch porque este repo no firma SigV4 en el bootstrap en código
-- si `CREATE_OBSERVABILITY_SUITE=true` y `OTEL_EXPORT_STRATEGY=collector`, puedes dejar vacíos `OTEL_COLLECTOR_TRACES_ENDPOINT` y `OTEL_COLLECTOR_METRICS_ENDPOINT`; Terraform los infiere hacia Alloy
+- si `OTEL_EXPORT_STRATEGY=collector`, puedes dejar vacíos `OTEL_COLLECTOR_TRACES_ENDPOINT` y `OTEL_COLLECTOR_METRICS_ENDPOINT`; Terraform los infiere hacia Alloy
 
 `teardown.yml` reutiliza las mismas variables para destruir el stack.

@@ -37,7 +37,6 @@ jobs:
       OBSERVABILITY_EMF_COMPATIBILITY_MODE: ${{ vars.OBSERVABILITY_EMF_COMPATIBILITY_MODE != '' && vars.OBSERVABILITY_EMF_COMPATIBILITY_MODE || 'true' }}
       CREATE_OBSERVABILITY_DASHBOARD: ${{ vars.CREATE_OBSERVABILITY_DASHBOARD != '' && vars.CREATE_OBSERVABILITY_DASHBOARD || 'true' }}
       CREATE_OBSERVABILITY_ALARMS: ${{ vars.CREATE_OBSERVABILITY_ALARMS != '' && vars.CREATE_OBSERVABILITY_ALARMS || 'true' }}
-      CREATE_OBSERVABILITY_SUITE: ${{ vars.CREATE_OBSERVABILITY_SUITE != '' && vars.CREATE_OBSERVABILITY_SUITE || 'false' }}
       OBSERVABILITY_SUITE_INSTANCE_TYPE: ${{ vars.OBSERVABILITY_SUITE_INSTANCE_TYPE != '' && vars.OBSERVABILITY_SUITE_INSTANCE_TYPE || 't3.small' }}
       OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB: ${{ vars.OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB != '' && vars.OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB || '20' }}
       OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS: ${{ vars.OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS != '' && vars.OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS || '["0.0.0.0/0"]' }}
@@ -159,7 +158,6 @@ jobs:
             -var="observability_emf_compatibility_mode=${OBSERVABILITY_EMF_COMPATIBILITY_MODE}" \
             -var="create_observability_dashboard=${CREATE_OBSERVABILITY_DASHBOARD}" \
             -var="create_observability_alarms=${CREATE_OBSERVABILITY_ALARMS}" \
-            -var="create_observability_suite=${CREATE_OBSERVABILITY_SUITE}" \
             -var="observability_suite_instance_type=${OBSERVABILITY_SUITE_INSTANCE_TYPE}" \
             -var="observability_suite_root_volume_size_gb=${OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB}" \
             -var="observability_suite_grafana_allowed_cidrs=${OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS}" \

@@ -65,7 +65,6 @@ Aunque el código ya está preparado con abstracciones `otel-first`, con el perf
 | `OBSERVABILITY_EMF_COMPATIBILITY_MODE` | `true` |
 | `CREATE_OBSERVABILITY_DASHBOARD` | `true` |
 | `CREATE_OBSERVABILITY_ALARMS` | `true` |
-| `CREATE_OBSERVABILITY_SUITE` | `false` |
 
 ## Qué cambia si SRE / DevOps aplica overrides
 
@@ -121,7 +120,7 @@ Resultado:
 
 - la app sigue inicializando OTel desde código
 - las Lambdas exportan OTLP al Collector
-- si además `CREATE_OBSERVABILITY_SUITE=true`, Terraform puede inferir los endpoints de trazas y métricas hacia Alloy
+- Terraform puede inferir los endpoints de trazas y métricas hacia Alloy cuando `OTEL_EXPORT_STRATEGY=collector`
 
 ### Caso 3: activar ADOT Layer + Collector
 

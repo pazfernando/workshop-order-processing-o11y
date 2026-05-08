@@ -28,12 +28,12 @@ data "aws_caller_identity" "current" {}
 data "aws_partition" "current" {}
 
 data "aws_vpc" "default" {
-  count   = var.create_observability_suite ? 1 : 0
+  count   = var.otel_export_strategy == "collector" ? 1 : 0
   default = true
 }
 
 data "aws_subnets" "default" {
-  count = var.create_observability_suite ? 1 : 0
+  count = var.otel_export_strategy == "collector" ? 1 : 0
 
   filter {
     name   = "vpc-id"
@@ -42,7 +42,7 @@ data "aws_subnets" "default" {
 }
 
 data "aws_ami" "amazon_linux_2023" {
-  count       = var.create_observability_suite ? 1 : 0
+  count       = var.otel_export_strategy == "collector" ? 1 : 0
   most_recent = true
   owners      = ["amazon"]
 
@@ -90,7 +90,7 @@ locals {
   observability_suite_name            = "${local.name_prefix}-observability-suite"
   observability_suite_dashboard_uid   = "workshop-order-processing"
   observability_suite_dashboard_title = "Workshop Order Processing"
-  observability_suite_enabled         = var.create_observability_suite
+  observability_suite_enabled         = var.otel_export_strategy == "collector"
   adot_supported_regions = toset([
     "ap-northeast-1",
     "ap-northeast-2",

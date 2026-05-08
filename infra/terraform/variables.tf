@@ -156,12 +156,6 @@ variable "payment_latency_alarm_threshold_ms" {
   default     = 3000
 }
 
-variable "create_observability_suite" {
-  description = "Whether to provision the EC2-based observability suite with Grafana, Alloy, Prometheus, and Loki."
-  type        = bool
-  default     = false
-}
-
 variable "observability_suite_instance_type" {
   description = "EC2 instance type used for the observability suite."
   type        = string
