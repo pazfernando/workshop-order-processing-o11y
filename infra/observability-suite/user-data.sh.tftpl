@@ -85,9 +85,9 @@ GRAFANA_ADMIN_PASSWORD="$(cat /opt/observability-suite/grafana/admin-password)"
 
 for attempt in $(seq 1 30); do
   if docker compose -f /opt/observability-suite/docker-compose.yml exec -T \
-    -e GRAFANA_ADMIN_PASSWORD="${GRAFANA_ADMIN_PASSWORD}" \
+    -e GRAFANA_ADMIN_PASSWORD="$${GRAFANA_ADMIN_PASSWORD}" \
     grafana \
-    sh -lc 'grafana cli --homepath /usr/share/grafana --config /etc/grafana/grafana.ini admin reset-admin-password "$GRAFANA_ADMIN_PASSWORD"'
+    sh -lc 'grafana cli --homepath /usr/share/grafana --config /etc/grafana/grafana.ini admin reset-admin-password "$$GRAFANA_ADMIN_PASSWORD"'
   then
     echo "Grafana admin password reset completed"
     break
