@@ -29,7 +29,7 @@ Notas de este repo:
 | `OTEL_EXPORT_STRATEGY` | `direct` | La Lambda exporta OTLP directo al backend final | Default operativo hoy |
 | `OTEL_EXPORT_STRATEGY` | `collector` | La Lambda exporta OTLP primero a un Collector | En este repo provisiona la suite EC2 con Alloy |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | URL o vacío | Endpoint base OTLP del backend final | Solo con `direct` |
-| `OTEL_COLLECTOR_ENDPOINT` | URL o vacío | Endpoint base OTLP del Collector | Solo con `collector` |
+| `OTEL_COLLECTOR_ENDPOINT` | URL o vacío | Endpoint base OTLP del Collector | Solo con `collector`; opcional si Terraform infiere Alloy |
 
 ## Combinaciones
 
@@ -40,9 +40,9 @@ Notas de este repo:
 | `adot_layer + direct` | ADOT arranca OTel y exporta directo | Habilita CloudWatch directo | Requiere SigV4 |
 | `adot_layer + collector` | ADOT arranca OTel y exporta a Collector | Más desacople | Mayor complejidad |
 
-## Suite EC2 opcional
+## Suite EC2 para `collector`
 
-La suite opcional de este repo usa una sola EC2 para:
+Cuando `OTEL_EXPORT_STRATEGY=collector`, este repo usa una sola EC2 para:
 
 - `Alloy` como collector OTLP
 - `Prometheus` como backend de métricas
@@ -77,7 +77,7 @@ Usa:
 ```text
 OTEL_MODE=code
 OTEL_EXPORT_STRATEGY=collector
-OTEL_COLLECTOR_ENDPOINT=http://collector.internal:4318
+OTEL_COLLECTOR_ENDPOINT=
 OBSERVABILITY_EMF_COMPATIBILITY_MODE=true
 ```
 
@@ -91,7 +91,7 @@ Usa:
 OTEL_MODE=adot_layer
 ADOT_LAMBDA_LAYER_ARN=arn:aws:lambda:...
 OTEL_EXPORT_STRATEGY=collector
-OTEL_COLLECTOR_ENDPOINT=http://collector.internal:4318
+OTEL_COLLECTOR_ENDPOINT=
 ```
 
 Mueve el bootstrap fuera del código y centraliza la operación.
@@ -119,7 +119,7 @@ Mueve el bootstrap fuera del código y centraliza la operación.
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | URL o vacío | Solo con `direct` | vacío |
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | URL o vacío | No | vacío |
 | `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | URL o vacío | No | vacío |
-| `OTEL_COLLECTOR_ENDPOINT` | URL o vacío | Solo con `collector` | vacío hasta tener Collector |
+| `OTEL_COLLECTOR_ENDPOINT` | URL o vacío | Solo con `collector` | vacío para inferir Alloy |
 | `OTEL_COLLECTOR_TRACES_ENDPOINT` | URL o vacío | No | vacío |
 | `OTEL_COLLECTOR_METRICS_ENDPOINT` | URL o vacío | No | vacío |
 | `OTEL_METRIC_EXPORT_INTERVAL_MS` | entero positivo | No | `10000` |
@@ -260,7 +260,7 @@ El repo incluye estas configuraciones:
 Reglas de validación de observabilidad:
 
 - si `OTEL_MODE=adot_layer`, `ADOT_LAMBDA_LAYER_ARN` debe existir
-- si `OTEL_EXPORT_STRATEGY=collector`, `OTEL_COLLECTOR_ENDPOINT` debe existir
+- si `OTEL_EXPORT_STRATEGY=collector`, puedes dejar vacío `OTEL_COLLECTOR_ENDPOINT` para que Terraform infiera Alloy, o definirlo si quieres un Collector externo
 - si `OTEL_EXPORT_STRATEGY=direct` y `OTEL_MODE=adot_layer`, dejar vacíos los endpoints directos hace que Terraform infiera CloudWatch OTLP por señal
 - si `OTEL_EXPORT_STRATEGY=direct` y `OTEL_MODE=code`, no uses endpoints OTLP de CloudWatch porque este repo no firma SigV4 en el bootstrap en código
 - si `OTEL_EXPORT_STRATEGY=collector`, puedes dejar vacíos `OTEL_COLLECTOR_TRACES_ENDPOINT` y `OTEL_COLLECTOR_METRICS_ENDPOINT`; Terraform los infiere hacia Alloy

@@ -12,7 +12,7 @@ Caso base para talleres técnicos senior sobre arquitectura serverless, resilien
 - CloudWatch Logs concentra logs JSON de cada Lambda y access logs del API.
 - CloudWatch Metrics recibe métricas custom vía Embedded Metric Format (EMF) sin librerías adicionales.
 - AWS X-Ray queda habilitado en las Lambdas para ver latencia y errores por función.
-- La suite opcional de observabilidad en EC2 usa Alloy como collector OTLP, Prometheus como backend de métricas, Tempo como backend de trazas, Grafana como visualizador y Loki como backend listo para logs.
+- Cuando `OTEL_EXPORT_STRATEGY=collector`, el deploy provisiona una suite en EC2 con Alloy como collector OTLP, Prometheus como backend de métricas, Tempo como backend de trazas, Grafana como visualizador y Loki como backend listo para logs.
 - La base de instrumentación compartida vive en `src/shared/observability.js` y la convención del repositorio es `otel-first`, preservando compatibilidad temporal con EMF para CloudWatch.
 
 ```mermaid
@@ -73,7 +73,7 @@ flowchart LR
 - Access logs para API Gateway HTTP API.
 - Dashboard de CloudWatch con métricas técnicas y de negocio.
 - Alarmas básicas para 5xx del API, errores del procesador y latencia del simulador de pago.
-- Suite opcional en EC2 con Grafana, Alloy, Prometheus, Tempo y Loki para visualizar métricas y trazas OTLP y dejar Loki listo para logs futuros.
+- Con `OTEL_EXPORT_STRATEGY=collector`, suite en EC2 con Grafana, Alloy, Prometheus, Tempo y Loki para visualizar métricas y trazas OTLP y dejar Loki listo para logs futuros.
 
 ### Métricas de negocio recolectadas
 
@@ -144,7 +144,6 @@ Resumen operativo corto:
 - Arquitectura objetivo: `OTEL_MODE=code` y `OTEL_EXPORT_STRATEGY=collector`
 - Si usas `adot_layer`, debes definir `ADOT_LAMBDA_LAYER_ARN`
 - Si usas `adot_layer` en este repo Node.js, Terraform configura `AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-handler`
-- Si usas `collector`, debes definir `OTEL_COLLECTOR_ENDPOINT`
 - Si usas `OTEL_EXPORT_STRATEGY=collector`, Terraform provisiona la suite EC2 y, si no defines endpoints explícitos, infiere el endpoint HTTP de Alloy para trazas y métricas
 - Si usas `direct` con `adot_layer` y no defines overrides, Terraform infiere CloudWatch OTLP por señal en la región actual
 - Si usas `direct` con `code`, no apuntes a CloudWatch OTLP directo con este repo: los exporters en código no firman SigV4
@@ -159,11 +158,11 @@ Resumen operativo corto:
 | `metrics_namespace` | `Workshop/OrderProcessing` | Si quieres aislar métricas por ambiente o equipo |
 | `otel_mode` | `code` | Usa `adot_layer` para delegar bootstrap al layer ADOT |
 | `adot_lambda_layer_arn` | vacío | Solo si quieres forzar un ARN distinto al inferido |
-| `otel_export_strategy` | `direct` | Usa `collector` cuando ya exista un Collector real |
+| `otel_export_strategy` | `direct` | Usa `collector` para provisionar y usar la suite EC2 del workshop |
 | `otel_exporter_otlp_endpoint` | vacío | Para backends OTLP no-AWS con endpoint base único |
 | `otel_exporter_otlp_traces_endpoint` | vacío | Para override directo de trazas |
 | `otel_exporter_otlp_metrics_endpoint` | vacío | Para override directo de métricas |
-| `otel_collector_endpoint` | vacío | Requerido con `collector` si no usas overrides por señal |
+| `otel_collector_endpoint` | vacío | Úsalo solo si quieres apuntar a un Collector distinto al Alloy inferido |
 | `otel_collector_traces_endpoint` | vacío | Override de trazas hacia Collector |
 | `otel_collector_metrics_endpoint` | vacío | Override de métricas hacia Collector |
 | `observability_emf_compatibility_mode` | `true` | Si quieres apagar EMF y quedarte solo con OTLP |
@@ -365,7 +364,7 @@ Variables:
 - `METRICS_NAMESPACE` opcional
 - `OTEL_MODE` opcional
 - `OTEL_EXPORT_STRATEGY` opcional
-- `OTEL_COLLECTOR_ENDPOINT` opcional salvo que `OTEL_EXPORT_STRATEGY=collector`
+- `OTEL_COLLECTOR_ENDPOINT` opcional; si queda vacío con `OTEL_EXPORT_STRATEGY=collector`, Terraform infiere Alloy
 - `OTEL_COLLECTOR_TRACES_ENDPOINT` opcional
 - `OTEL_COLLECTOR_METRICS_ENDPOINT` opcional
 - `ADOT_LAMBDA_LAYER_ARN` opcional salvo que `OTEL_MODE=adot_layer`
@@ -442,7 +441,7 @@ Estas configuraciones aplican:
 Importante:
 
 - El workflow del repositorio usa `direct` como default operativo.
-- Cambia a `collector` solo cuando ya tengas un endpoint real en `OTEL_COLLECTOR_ENDPOINT`.
+- Cambia a `collector` cuando quieras usar la suite EC2 del workshop o cuando ya tengas un Collector externo real.
 
 Ejemplo de despliegue apuntando al Collector:
 

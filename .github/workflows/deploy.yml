@@ -54,7 +54,7 @@ on:
           - collector
           - direct
       otel_collector_endpoint:
-        description: Collector OTLP base endpoint. Required when otel_export_strategy=collector
+        description: Collector OTLP base endpoint. Leave empty to let Terraform infer the Alloy endpoint when collector provisions the EC2 suite
         required: false
         default: ""
         type: string
@@ -531,7 +531,7 @@ jobs:
           | Payment Simulator Lambda | \`${PAYMENT_SIMULATOR_NAME}\` |
           | API Access Log Group | \`${API_ACCESS_LOG_GROUP_NAME}\` |
           | CloudWatch Dashboard | \`${OBSERVABILITY_DASHBOARD_NAME}\` |
-          | Observability Suite Enabled | \`${OBSERVABILITY_SUITE_ENABLED}\` |
+          | Collector-managed suite active | \`${OBSERVABILITY_SUITE_ENABLED}\` |
           | Observability Suite Public IP | \`${OBSERVABILITY_SUITE_PUBLIC_IP}\` |
           | Grafana URL | \`${OBSERVABILITY_SUITE_GRAFANA_URL}\` |
           | Grafana Dashboard URL | \`${OBSERVABILITY_SUITE_GRAFANA_DASHBOARD_URL}\` |
@@ -604,9 +604,9 @@ jobs:
           - If \`OTEL_MODE=code\`, the application initializes OpenTelemetry from \`src/shared/otel-bootstrap.js\`.
           - If \`OTEL_MODE=adot_layer\`, the Lambda Layer is responsible for SDK bootstrap and this repo configures \`AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-handler\` for the AWS-managed Node.js layer in use.
           - If \`OTEL_EXPORT_STRATEGY=direct\`, Lambdas export OTLP directly to the final backend.
-          - If \`OTEL_EXPORT_STRATEGY=collector\`, Lambdas export OTLP to a Collector first.
+          - If \`OTEL_EXPORT_STRATEGY=collector\`, Lambdas export OTLP to Alloy first and Terraform provisions the EC2 suite for the workshop.
           - If \`OTEL_MODE=adot_layer\` and all direct OTLP inputs are empty, Terraform infers CloudWatch OTLP traces and metrics endpoints for the selected region.
-          - If \`Observability Suite Enabled=true\` and no collector trace or metric endpoint is provided, Terraform infers the Alloy OTLP HTTP endpoint for both traces and metrics.
+          - If \`OTEL_EXPORT_STRATEGY=collector\` and no collector endpoint override is provided, Terraform infers the Alloy OTLP HTTP endpoint for both traces and metrics.
           - If \`Application Signals execution role policy=true\`, Terraform attached \`CloudWatchLambdaApplicationSignalsExecutionRolePolicy\` to all Lambda execution roles.
           - If \`effective_otlp_authentication_mode=sigv4\`, the selected OTLP backend requires SigV4 and this repo relies on the AWS-managed ADOT Lambda layer to satisfy that requirement at runtime.
           - If all effective OTLP endpoints are empty, OTLP export is inactive and CloudWatch Logs / EMF / X-Ray remain the effective active path.

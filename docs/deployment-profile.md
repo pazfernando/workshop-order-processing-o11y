@@ -113,14 +113,15 @@ Debes definir:
 ```text
 OTEL_MODE=code
 OTEL_EXPORT_STRATEGY=collector
-OTEL_COLLECTOR_ENDPOINT=http://collector.internal:4318
+OTEL_COLLECTOR_ENDPOINT=
 ```
 
 Resultado:
 
 - la app sigue inicializando OTel desde código
 - las Lambdas exportan OTLP al Collector
-- Terraform puede inferir los endpoints de trazas y métricas hacia Alloy cuando `OTEL_EXPORT_STRATEGY=collector`
+- con `OTEL_COLLECTOR_ENDPOINT` vacío, Terraform provisiona la suite EC2 e infiere Alloy para trazas y métricas
+- si defines `OTEL_COLLECTOR_ENDPOINT`, apuntas a un Collector externo en vez de usar el Alloy inferido
 
 ### Caso 3: activar ADOT Layer + Collector
 
@@ -130,7 +131,7 @@ Debes definir:
 OTEL_MODE=adot_layer
 ADOT_LAMBDA_LAYER_ARN=arn:aws:lambda:...
 OTEL_EXPORT_STRATEGY=collector
-OTEL_COLLECTOR_ENDPOINT=http://collector.internal:4318
+OTEL_COLLECTOR_ENDPOINT=
 ```
 
 Resultado:
@@ -157,7 +158,7 @@ Interpretación:
 - la convención de diseño es `otel-first`
 - pero la operación efectiva sigue descansando en CloudWatch Logs, EMF y X-Ray
 - OTLP directo a CloudWatch no se infiere en este perfil porque el bootstrap sigue en código
-- la suite EC2 de Grafana/Alloy/Prometheus/Tempo/Loki no forma parte del perfil por defecto; se activa explícitamente
+- la suite EC2 de Grafana/Alloy/Prometheus/Tempo/Loki no forma parte del perfil por defecto; aparece cuando cambias a `OTEL_EXPORT_STRATEGY=collector`
 
 ### Para avanzar a una operación más madura
 
@@ -167,7 +168,7 @@ La siguiente transición recomendada es:
 OTEL_MODE=adot_layer
 OTEL_EXPORT_STRATEGY=collector
 ADOT_LAMBDA_LAYER_ARN=...
-OTEL_COLLECTOR_ENDPOINT=http://collector.internal:4318
+OTEL_COLLECTOR_ENDPOINT=
 ```
 
 Interpretación:
@@ -175,3 +176,4 @@ Interpretación:
 - el bootstrap queda fuera del código
 - el Collector se vuelve el punto central de enrutamiento
 - CloudWatch y terceros pasan a ser destinos del Collector, no contratos de la app
+- si no das un endpoint externo, Terraform usa la suite EC2 del workshop
