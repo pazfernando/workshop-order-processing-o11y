@@ -135,6 +135,20 @@ jobs:
             -backend-config="key=${TF_STATE_KEY}" \
             -backend-config="region=${AWS_REGION}"
 
+      - name: Resolve effective ADOT layer ARN
+        run: |
+          EFFECTIVE_ADOT_LAMBDA_LAYER_ARN="$ADOT_LAMBDA_LAYER_ARN"
+
+          if [ "$OTEL_MODE" = "adot_layer" ] && [ -z "$EFFECTIVE_ADOT_LAMBDA_LAYER_ARN" ]; then
+            case "$AWS_REGION" in
+              ap-northeast-1|ap-northeast-2|ap-south-1|ap-southeast-1|ap-southeast-2|ca-central-1|eu-central-1|eu-north-1|eu-west-1|eu-west-2|eu-west-3|sa-east-1|us-east-1|us-east-2|us-west-1|us-west-2)
+                EFFECTIVE_ADOT_LAMBDA_LAYER_ARN="arn:aws:lambda:${AWS_REGION}:901920570463:layer:aws-otel-nodejs-amd64-ver-1-30-2:1"
+                ;;
+            esac
+          fi
+
+          echo "EFFECTIVE_ADOT_LAMBDA_LAYER_ARN=${EFFECTIVE_ADOT_LAMBDA_LAYER_ARN}" >> "$GITHUB_ENV"
+
       - name: Destroy stack
         run: |
           terraform -chdir=infra/terraform destroy \
@@ -150,7 +164,7 @@ jobs:
             -var="otel_collector_endpoint=${OTEL_COLLECTOR_ENDPOINT}" \
             -var="otel_collector_traces_endpoint=${OTEL_COLLECTOR_TRACES_ENDPOINT}" \
             -var="otel_collector_metrics_endpoint=${OTEL_COLLECTOR_METRICS_ENDPOINT}" \
-            -var="adot_lambda_layer_arn=${ADOT_LAMBDA_LAYER_ARN}" \
+            -var="adot_lambda_layer_arn=${EFFECTIVE_ADOT_LAMBDA_LAYER_ARN}" \
             -var="otel_exporter_otlp_endpoint=${OTEL_EXPORTER_OTLP_ENDPOINT}" \
             -var="otel_exporter_otlp_traces_endpoint=${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT}" \
             -var="otel_exporter_otlp_metrics_endpoint=${OTEL_EXPORTER_OTLP_METRICS_ENDPOINT}" \
