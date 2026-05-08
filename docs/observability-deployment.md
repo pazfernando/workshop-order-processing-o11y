@@ -32,7 +32,7 @@ Hay dos decisiones separadas:
 | :--- | :--- | :--- | :--- |
 | `code + direct` | La app arranca OTel y exporta directo al backend | Más simple para empezar | Menos desacople |
 | `code + collector` | La app arranca OTel y exporta a Collector | Mejor equilibrio entre claridad y arquitectura | Requiere Collector |
-| `adot_layer + direct` | ADOT arranca OTel y exporta directo | Menos bootstrap en código | Más dependencia operativa en AWS |
+| `adot_layer + direct` | ADOT arranca OTel y exporta directo | Menos bootstrap en código | Requiere endpoints válidos y autenticación SigV4 |
 | `adot_layer + collector` | ADOT arranca OTel y exporta a Collector | Muy buen desacople entre app y backend | Mayor complejidad operativa |
 
 ## Recomendación por etapa
@@ -143,7 +143,10 @@ export OBSERVABILITY_EMF_COMPATIBILITY_MODE="true"
 
 Nota:
 
-- Si el backend usa endpoints distintos para métricas y trazas, usa `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` y `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`.
+- CloudWatch no usa un único endpoint base para trazas y métricas.
+- Para CloudWatch directo usa `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=https://xray.<region>.amazonaws.com/v1/traces` y `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=https://monitoring.<region>.amazonaws.com/v1/metrics`.
+- Los endpoints OTLP de CloudWatch requieren autenticación `SigV4`.
+- En este repo, el camino soportado para CloudWatch directo es `OTEL_MODE=adot_layer`.
 
 ### Ejemplo 3: deploy con Collector
 
@@ -162,6 +165,23 @@ export ADOT_LAMBDA_LAYER_ARN="arn:aws:lambda:<region>:<account-or-publisher>:lay
 export OTEL_EXPORT_STRATEGY="collector"
 export OTEL_COLLECTOR_ENDPOINT="http://collector.internal:4318"
 ```
+
+### Ejemplo 5: deploy con ADOT Layer + CloudWatch directo
+
+```bash
+export OTEL_MODE="adot_layer"
+export ADOT_LAMBDA_LAYER_ARN="arn:aws:lambda:<region>:<account-or-publisher>:layer:<adot-layer-name>:<version>"
+export OTEL_EXPORT_STRATEGY="direct"
+export OTEL_EXPORTER_OTLP_ENDPOINT=""
+export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=""
+export OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=""
+```
+
+Resultado esperado:
+
+- Terraform infiere `https://xray.<region>.amazonaws.com/v1/traces`
+- Terraform infiere `https://monitoring.<region>.amazonaws.com/v1/metrics`
+- el output `effective_otlp_authentication_mode` queda en `sigv4`
 
 ## Collectors de referencia
 
@@ -206,7 +226,8 @@ Reglas de validación de observabilidad:
 
 - si `OTEL_MODE=adot_layer`, `ADOT_LAMBDA_LAYER_ARN` debe existir
 - si `OTEL_EXPORT_STRATEGY=collector`, `OTEL_COLLECTOR_ENDPOINT` debe existir
-- si `OTEL_EXPORT_STRATEGY=direct`, puedes dejar el endpoint vacío, pero entonces no habrá exportación OTLP activa
+- si `OTEL_EXPORT_STRATEGY=direct` y `OTEL_MODE=adot_layer`, dejar vacíos los endpoints directos hace que Terraform infiera CloudWatch OTLP por señal
+- si `OTEL_EXPORT_STRATEGY=direct` y `OTEL_MODE=code`, no uses endpoints OTLP de CloudWatch porque este repo no firma SigV4 en el bootstrap en código
 
 ### `teardown.yml`
 

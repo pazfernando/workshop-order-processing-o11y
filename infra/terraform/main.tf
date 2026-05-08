@@ -66,16 +66,59 @@ locals {
     "us-west-1",
     "us-west-2"
   ])
-  adot_layer_architecture         = "amd64"
-  inferred_adot_lambda_layer_arn  = contains(local.adot_supported_regions, var.aws_region) ? "arn:aws:lambda:${var.aws_region}:901920570463:layer:aws-otel-nodejs-${local.adot_layer_architecture}-ver-1-30-2:1" : ""
-  effective_adot_lambda_layer_arn = trim(var.adot_lambda_layer_arn, " ") != "" ? trim(var.adot_lambda_layer_arn, " ") : local.inferred_adot_lambda_layer_arn
-  effective_otlp_endpoint         = var.otel_export_strategy == "collector" ? var.otel_collector_endpoint : var.otel_exporter_otlp_endpoint
+  adot_layer_architecture                   = "amd64"
+  inferred_adot_lambda_layer_arn            = contains(local.adot_supported_regions, var.aws_region) ? "arn:aws:lambda:${var.aws_region}:901920570463:layer:aws-otel-nodejs-${local.adot_layer_architecture}-ver-1-30-2:1" : ""
+  effective_adot_lambda_layer_arn           = trim(var.adot_lambda_layer_arn, " ") != "" ? trim(var.adot_lambda_layer_arn, " ") : local.inferred_adot_lambda_layer_arn
+  direct_otlp_base_endpoint                 = trim(var.otel_exporter_otlp_endpoint, " ")
+  direct_otlp_traces_endpoint               = trim(var.otel_exporter_otlp_traces_endpoint, " ")
+  direct_otlp_metrics_endpoint              = trim(var.otel_exporter_otlp_metrics_endpoint, " ")
+  collector_otlp_base_endpoint              = trim(var.otel_collector_endpoint, " ")
+  collector_otlp_traces_endpoint            = trim(var.otel_collector_traces_endpoint, " ")
+  collector_otlp_metrics_endpoint           = trim(var.otel_collector_metrics_endpoint, " ")
+  inferred_cloudwatch_traces_otlp_endpoint  = "https://xray.${var.aws_region}.amazonaws.com/v1/traces"
+  inferred_cloudwatch_metrics_otlp_endpoint = "https://monitoring.${var.aws_region}.amazonaws.com/v1/metrics"
+  infer_cloudwatch_direct_endpoints = (
+    var.otel_mode == "adot_layer" &&
+    var.otel_export_strategy == "direct" &&
+    local.direct_otlp_base_endpoint == "" &&
+    local.direct_otlp_traces_endpoint == "" &&
+    local.direct_otlp_metrics_endpoint == ""
+  )
+  direct_targets_cloudwatch = (
+    length(regexall("^https://(monitoring|xray)\\.[^.]+\\.amazonaws\\.com/v1/(metrics|traces)$", local.direct_otlp_base_endpoint)) > 0 ||
+    length(regexall("^https://xray\\.[^.]+\\.amazonaws\\.com/v1/traces$", local.direct_otlp_traces_endpoint)) > 0 ||
+    length(regexall("^https://monitoring\\.[^.]+\\.amazonaws\\.com/v1/metrics$", local.direct_otlp_metrics_endpoint)) > 0 ||
+    local.infer_cloudwatch_direct_endpoints
+  )
+  effective_otlp_endpoint = var.otel_export_strategy == "collector" ? local.collector_otlp_base_endpoint : (
+    local.direct_otlp_base_endpoint != "" ? local.direct_otlp_base_endpoint : (
+      local.infer_cloudwatch_direct_endpoints ? "cloudwatch-managed-per-signal" : ""
+    )
+  )
   effective_otlp_traces_endpoint = var.otel_export_strategy == "collector" ? (
-    var.otel_collector_traces_endpoint != "" ? var.otel_collector_traces_endpoint : var.otel_collector_endpoint
-  ) : var.otel_exporter_otlp_traces_endpoint
+    local.collector_otlp_traces_endpoint != "" ? local.collector_otlp_traces_endpoint : local.collector_otlp_base_endpoint
+    ) : (
+    local.direct_otlp_traces_endpoint != "" ? local.direct_otlp_traces_endpoint : (
+      local.direct_otlp_base_endpoint != "" ? local.direct_otlp_base_endpoint : (
+        local.infer_cloudwatch_direct_endpoints ? local.inferred_cloudwatch_traces_otlp_endpoint : ""
+      )
+    )
+  )
   effective_otlp_metrics_endpoint = var.otel_export_strategy == "collector" ? (
-    var.otel_collector_metrics_endpoint != "" ? var.otel_collector_metrics_endpoint : var.otel_collector_endpoint
-  ) : var.otel_exporter_otlp_metrics_endpoint
+    local.collector_otlp_metrics_endpoint != "" ? local.collector_otlp_metrics_endpoint : local.collector_otlp_base_endpoint
+    ) : (
+    local.direct_otlp_metrics_endpoint != "" ? local.direct_otlp_metrics_endpoint : (
+      local.direct_otlp_base_endpoint != "" ? local.direct_otlp_base_endpoint : (
+        local.infer_cloudwatch_direct_endpoints ? local.inferred_cloudwatch_metrics_otlp_endpoint : ""
+      )
+    )
+  )
+  otlp_export_status = local.effective_otlp_traces_endpoint != "" || local.effective_otlp_metrics_endpoint != "" ? "active" : "inactive"
+  effective_otlp_authentication_mode = var.otel_export_strategy == "collector" ? "collector-managed" : (
+    local.direct_targets_cloudwatch ? "sigv4" : (
+      local.otlp_export_status == "active" ? "backend-defined" : "inactive"
+    )
+  )
   otel_common_env = {
     OBSERVABILITY_OTEL_ENABLED           = var.otel_mode == "code" ? "true" : "false"
     OBSERVABILITY_EMF_COMPATIBILITY_MODE = var.observability_emf_compatibility_mode ? "true" : "false"
@@ -110,6 +153,13 @@ resource "aws_dynamodb_table" "orders" {
 resource "aws_apigatewayv2_api" "orders" {
   name          = "${local.name_prefix}-http-api"
   protocol_type = "HTTP"
+
+  lifecycle {
+    precondition {
+      condition     = !(var.otel_mode == "code" && var.otel_export_strategy == "direct" && local.direct_targets_cloudwatch)
+      error_message = "CloudWatch direct OTLP endpoints require SigV4-capable ADOT runtime support. In this repo, use otel_mode='adot_layer' for CloudWatch direct OTLP or keep otel_mode='code' with a non-AWS OTLP backend."
+    }
+  }
 }
 
 resource "aws_apigatewayv2_stage" "default" {

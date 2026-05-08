@@ -32,6 +32,7 @@ Resultado:
 
 - el deployment por defecto **no usa Collector**
 - el deployment por defecto **no exporta OTLP a ningún backend**
+- con `OTEL_MODE=code`, dejar `direct` sin endpoints no infiere CloudWatch y mantiene OTLP inactivo
 
 ## Qué observabilidad queda activa realmente
 
@@ -81,6 +82,27 @@ Resultado:
 
 - la app sigue inicializando OTel desde código
 - las Lambdas exportan OTLP directo al backend configurado
+- este caso es para backends OTLP que no dependen de SigV4
+
+### Caso 1b: activar CloudWatch directo con ADOT Layer
+
+Debes definir:
+
+```text
+OTEL_MODE=adot_layer
+OTEL_EXPORT_STRATEGY=direct
+ADOT_LAMBDA_LAYER_ARN=arn:aws:lambda:...
+OTEL_EXPORTER_OTLP_ENDPOINT=
+OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=
+OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=
+```
+
+Resultado:
+
+- el Layer ADOT inicializa OTel antes del handler
+- Terraform infiere `https://xray.<region>.amazonaws.com/v1/traces`
+- Terraform infiere `https://monitoring.<region>.amazonaws.com/v1/metrics`
+- la ruta directa depende de autenticación `SigV4`
 
 ### Caso 2: activar Collector
 
@@ -131,6 +153,7 @@ Interpretación:
 
 - la convención de diseño es `otel-first`
 - pero la operación efectiva sigue descansando en CloudWatch Logs, EMF y X-Ray
+- OTLP directo a CloudWatch no se infiere en este perfil porque el bootstrap sigue en código
 
 ### Para avanzar a una operación más madura
 

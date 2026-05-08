@@ -117,7 +117,8 @@ Resumen operativo corto:
 - Arquitectura objetivo: `OTEL_MODE=code` y `OTEL_EXPORT_STRATEGY=collector`
 - Si usas `adot_layer`, debes definir `ADOT_LAMBDA_LAYER_ARN`
 - Si usas `collector`, debes definir `OTEL_COLLECTOR_ENDPOINT`
-- Si usas `direct`, normalmente defines `OTEL_EXPORTER_OTLP_ENDPOINT`
+- Si usas `direct` con `adot_layer` y no defines overrides, Terraform infiere CloudWatch OTLP por señal en la región actual
+- Si usas `direct` con `code`, no apuntes a CloudWatch OTLP directo con este repo: los exporters en código no firman SigV4
 
 ## Despliegue local
 
@@ -299,6 +300,12 @@ Variables:
 - `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` opcional
 - `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` opcional
 - `OTEL_METRIC_EXPORT_INTERVAL_MS` opcional
+
+Notas para `direct`:
+
+- con `OTEL_MODE=adot_layer`, si dejas vacíos `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` y `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`, Terraform infiere `https://xray.<region>.amazonaws.com/v1/traces` y `https://monitoring.<region>.amazonaws.com/v1/metrics`
+- esos endpoints de CloudWatch requieren autenticación `SigV4`
+- este repo solo considera soportado ese camino con `OTEL_MODE=adot_layer`
 - `OBSERVABILITY_EMF_COMPATIBILITY_MODE` opcional
 - `CREATE_OBSERVABILITY_DASHBOARD` opcional
 - `CREATE_OBSERVABILITY_ALARMS` opcional

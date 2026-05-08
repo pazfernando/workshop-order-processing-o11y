@@ -36,17 +36,17 @@ on:
           - code
           - adot_layer
       adot_lambda_layer_arn:
-        description: Optional explicit ADOT Lambda layer ARN. Leave empty to infer by AWS region when using adot_layer
+        description: Optional ADOT Lambda layer ARN. Leave empty to infer by AWS region when using adot_layer
         required: false
         default: ""
         type: string
       otel_exporter_otlp_endpoint:
-        description: "Direct OTLP base endpoint for the final backend. Used when otel_export_strategy=direct"
+        description: "Optional direct OTLP base endpoint for non-CloudWatch backends. For CloudWatch direct prefer per-signal endpoints or leave all direct endpoints empty with adot_layer"
         required: false
         default: ""
         type: string
       otel_export_strategy:
-        description: "Where OTLP goes first: direct to backend or collector first"
+        description: "Where OTLP goes first: direct to the final backend or collector first"
         required: false
         default: direct
         type: choice
@@ -69,12 +69,12 @@ on:
         default: ""
         type: string
       otel_exporter_otlp_traces_endpoint:
-        description: Optional direct OTLP traces endpoint override
+        description: "Optional direct traces OTLP endpoint. Leave empty to infer X-Ray when using adot_layer + direct"
         required: false
         default: ""
         type: string
       otel_exporter_otlp_metrics_endpoint:
-        description: Optional direct OTLP metrics endpoint override
+        description: "Optional direct metrics OTLP endpoint. Leave empty to infer CloudWatch Metrics when using adot_layer + direct"
         required: false
         default: ""
         type: string
@@ -249,6 +249,20 @@ jobs:
 
       - name: Validate observability configuration
         run: |
+          is_cloudwatch_traces_endpoint() {
+            case "$1" in
+              https://xray.*.amazonaws.com/v1/traces) return 0 ;;
+              *) return 1 ;;
+            esac
+          }
+
+          is_cloudwatch_metrics_endpoint() {
+            case "$1" in
+              https://monitoring.*.amazonaws.com/v1/metrics) return 0 ;;
+              *) return 1 ;;
+            esac
+          }
+
           if [ "$OTEL_MODE" = "adot_layer" ] && [ -z "$EFFECTIVE_ADOT_LAMBDA_LAYER_ARN" ]; then
             echo "Unable to infer an ADOT Lambda layer ARN for region ${AWS_REGION}. Set ADOT_LAMBDA_LAYER_ARN explicitly." >&2
             exit 1
@@ -260,7 +274,21 @@ jobs:
           fi
 
           if [ "$OTEL_EXPORT_STRATEGY" = "direct" ] && [ -z "$OTEL_EXPORTER_OTLP_ENDPOINT" ] && [ -z "$OTEL_EXPORTER_OTLP_TRACES_ENDPOINT" ] && [ -z "$OTEL_EXPORTER_OTLP_METRICS_ENDPOINT" ]; then
-            echo "No OTLP endpoint configured. The stack will still emit EMF/X-Ray signals, but OTel export will remain inactive."
+            if [ "$OTEL_MODE" = "adot_layer" ]; then
+              echo "Direct OTLP endpoints left empty with adot_layer. Terraform will infer CloudWatch OTLP traces and metrics endpoints for region ${AWS_REGION}."
+            else
+              echo "No OTLP endpoint configured. The stack will still emit EMF/X-Ray signals, but OTel export will remain inactive."
+            fi
+          fi
+
+          if [ "$OTEL_MODE" = "code" ] && [ "$OTEL_EXPORT_STRATEGY" = "direct" ]; then
+            if is_cloudwatch_traces_endpoint "$OTEL_EXPORTER_OTLP_ENDPOINT" || \
+               is_cloudwatch_metrics_endpoint "$OTEL_EXPORTER_OTLP_ENDPOINT" || \
+               is_cloudwatch_traces_endpoint "$OTEL_EXPORTER_OTLP_TRACES_ENDPOINT" || \
+               is_cloudwatch_metrics_endpoint "$OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"; then
+              echo "CloudWatch direct OTLP endpoints require SigV4-capable ADOT runtime support. Use otel_mode=adot_layer for CloudWatch direct OTLP in this repo." >&2
+              exit 1
+            fi
           fi
 
       - name: Reconcile Terraform state
@@ -431,7 +459,9 @@ jobs:
           EFFECTIVE_OTLP_BASE_ENDPOINT="$(terraform -chdir=infra/terraform output -raw effective_otlp_base_endpoint || true)"
           EFFECTIVE_OTLP_TRACES_ENDPOINT="$(terraform -chdir=infra/terraform output -raw effective_otlp_traces_endpoint || true)"
           EFFECTIVE_OTLP_METRICS_ENDPOINT="$(terraform -chdir=infra/terraform output -raw effective_otlp_metrics_endpoint || true)"
+          EFFECTIVE_OTLP_AUTHENTICATION_MODE="$(terraform -chdir=infra/terraform output -raw effective_otlp_authentication_mode || true)"
           EFFECTIVE_ADOT_LAMBDA_LAYER_ARN="$(terraform -chdir=infra/terraform output -raw effective_adot_lambda_layer_arn || true)"
+          OTLP_EXPORT_STATUS="$(terraform -chdir=infra/terraform output -raw otlp_export_status || true)"
 
           if [ "$OTEL_MODE" = "adot_layer" ]; then
             OTEL_INITIALIZATION="ADOT Lambda Layer"
@@ -445,10 +475,10 @@ jobs:
             OTEL_EXPORT_ROUTE="Direct OTLP"
           fi
 
-          if [ -n "$EFFECTIVE_OTLP_BASE_ENDPOINT" ] || [ -n "$EFFECTIVE_OTLP_TRACES_ENDPOINT" ] || [ -n "$EFFECTIVE_OTLP_METRICS_ENDPOINT" ]; then
-            OTLP_EXPORT_STATUS="Active"
+          if [ "$OTLP_EXPORT_STATUS" = "active" ]; then
+            OTLP_EXPORT_STATUS_LABEL="Active"
           else
-            OTLP_EXPORT_STATUS="Inactive"
+            OTLP_EXPORT_STATUS_LABEL="Inactive"
           fi
 
           if [ "$OBSERVABILITY_EMF_COMPATIBILITY_MODE" = "true" ]; then
@@ -486,7 +516,8 @@ jobs:
           | OTel initialization owner | ${OTEL_INITIALIZATION} |
           | OTEL_EXPORT_STRATEGY | \`${OTEL_EXPORT_STRATEGY}\` |
           | OTel export route | ${OTEL_EXPORT_ROUTE} |
-          | OTLP export status | ${OTLP_EXPORT_STATUS} |
+          | OTLP export status | ${OTLP_EXPORT_STATUS_LABEL} |
+          | OTLP authentication mode | \`${EFFECTIVE_OTLP_AUTHENTICATION_MODE}\` |
           | EMF compatibility mode | ${EMF_STATUS} |
           | Requested ADOT Lambda Layer ARN | \`${ADOT_LAMBDA_LAYER_ARN}\` |
           | Effective ADOT Lambda Layer ARN | \`${EFFECTIVE_ADOT_LAMBDA_LAYER_ARN}\` |
@@ -504,8 +535,8 @@ jobs:
           | API edge telemetry | API Gateway access logs + native metrics |
           | Business metrics | EMF to CloudWatch Metrics when compatibility mode is active |
           | Lambda traces | X-Ray |
-          | OTLP traces | ${OTLP_EXPORT_STATUS} |
-          | OTLP metrics | ${OTLP_EXPORT_STATUS} |
+          | OTLP traces | ${OTLP_EXPORT_STATUS_LABEL} |
+          | OTLP metrics | ${OTLP_EXPORT_STATUS_LABEL} |
 
           ## Alarm And Dashboard Settings
 
@@ -521,8 +552,10 @@ jobs:
 
           - If \`OTEL_MODE=code\`, the application initializes OpenTelemetry from \`src/shared/otel-bootstrap.js\`.
           - If \`OTEL_MODE=adot_layer\`, the Lambda Layer is responsible for SDK bootstrap.
-          - If \`OTEL_EXPORT_STRATEGY=direct\`, Lambdas export OTLP directly to the configured backend.
+          - If \`OTEL_EXPORT_STRATEGY=direct\`, Lambdas export OTLP directly to the final backend.
           - If \`OTEL_EXPORT_STRATEGY=collector\`, Lambdas export OTLP to a Collector first.
+          - If \`OTEL_MODE=adot_layer\` and all direct OTLP inputs are empty, Terraform infers CloudWatch OTLP traces and metrics endpoints for the selected region.
+          - If \`effective_otlp_authentication_mode=sigv4\`, the direct OTLP route depends on AWS SigV4 authentication support from ADOT.
           - If all effective OTLP endpoints are empty, OTLP export is inactive and CloudWatch Logs / EMF / X-Ray remain the effective active path.
           EOF
 
@@ -544,6 +577,7 @@ jobs:
             "otel_initialization_owner": "${OTEL_INITIALIZATION}",
             "otel_export_route": "${OTEL_EXPORT_ROUTE}",
             "otlp_export_status": "${OTLP_EXPORT_STATUS}",
+            "effective_otlp_authentication_mode": "${EFFECTIVE_OTLP_AUTHENTICATION_MODE}",
             "observability_emf_compatibility_mode": "${OBSERVABILITY_EMF_COMPATIBILITY_MODE}",
             "requested_adot_lambda_layer_arn": "${ADOT_LAMBDA_LAYER_ARN}",
             "effective_adot_lambda_layer_arn": "${EFFECTIVE_ADOT_LAMBDA_LAYER_ARN}",

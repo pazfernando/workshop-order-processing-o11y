@@ -47,6 +47,16 @@ output "effective_otlp_metrics_endpoint" {
   value       = local.effective_otlp_metrics_endpoint
 }
 
+output "otlp_export_status" {
+  description = "Whether the deployed configuration has OTLP export endpoints effectively enabled."
+  value       = local.otlp_export_status
+}
+
+output "effective_otlp_authentication_mode" {
+  description = "Authentication mode required by the effective OTLP route."
+  value       = local.effective_otlp_authentication_mode
+}
+
 output "effective_adot_lambda_layer_arn" {
   description = "Effective ADOT Lambda layer ARN configured for the Lambda functions."
   value       = local.effective_adot_lambda_layer_arn
