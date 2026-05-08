@@ -15,6 +15,7 @@ Este repositorio contiene un caso de negocio base para talleres técnicos sobre 
 - CloudWatch sigue siendo el backend de observabilidad por defecto en AWS, pero la instrumentación debe permitir exportar las mismas señales a terceros en el futuro, por ejemplo Datadog, Grafana Cloud o Prometheus, con cambios mínimos fuera de la capa de exportación.
 - Favorecer una capa compartida de observabilidad en `src/shared/observability.js` para centralizar inicialización, nombres de métricas, atributos comunes, correlación y la estrategia de exportación.
 - Preservar puntos claros para futuras extensiones con OpenTelemetry SDK, OTLP y Collector sin romper el flujo funcional actual.
+- Si se agrega, renombra o elimina una métrica emitida por la aplicación, actualizar en el mismo cambio el catálogo de métricas en `README.md` y la sección `Collected Business Metrics` del artifact generado por `.github/workflows/deploy.yml`.
 
 ## Convenciones técnicas
 

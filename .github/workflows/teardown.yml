@@ -21,7 +21,7 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'us-east-1' }}
       STACK_NAME: ${{ vars.STACK_NAME != '' && vars.STACK_NAME || 'observability-business-case' }}
       RESOURCE_PREFIX: ${{ vars.RESOURCE_PREFIX != '' && vars.RESOURCE_PREFIX || 'aws-dev' }}
-      PAYMENT_FAILURE_MODE: ${{ vars.PAYMENT_FAILURE_MODE != '' && vars.PAYMENT_FAILURE_MODE || 'none' }}
+      PAYMENT_FAILURE_MODE: ${{ vars.PAYMENT_FAILURE_MODE != '' && vars.PAYMENT_FAILURE_MODE || 'random_fail' }}
       LOG_RETENTION_IN_DAYS: ${{ vars.LOG_RETENTION_IN_DAYS != '' && vars.LOG_RETENTION_IN_DAYS || '7' }}
       METRICS_NAMESPACE: ${{ vars.METRICS_NAMESPACE != '' && vars.METRICS_NAMESPACE || 'Workshop/OrderProcessing' }}
       OTEL_MODE: ${{ vars.OTEL_MODE != '' && vars.OTEL_MODE || 'code' }}

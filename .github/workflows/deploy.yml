@@ -9,7 +9,7 @@ on:
       payment_failure_mode:
         description: Payment simulator failure mode
         required: false
-        default: none
+        default: random_fail
         type: choice
         options:
           - none
@@ -115,7 +115,7 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'us-east-1' }}
       STACK_NAME: ${{ vars.STACK_NAME != '' && vars.STACK_NAME || 'observability-business-case' }}
       RESOURCE_PREFIX: ${{ vars.RESOURCE_PREFIX != '' && vars.RESOURCE_PREFIX || 'aws-dev' }}
-      PAYMENT_FAILURE_MODE: ${{ inputs.payment_failure_mode != '' && inputs.payment_failure_mode || vars.PAYMENT_FAILURE_MODE || 'none' }}
+      PAYMENT_FAILURE_MODE: ${{ inputs.payment_failure_mode != '' && inputs.payment_failure_mode || vars.PAYMENT_FAILURE_MODE || 'random_fail' }}
       LOG_RETENTION_IN_DAYS: ${{ inputs.log_retention_in_days != '' && inputs.log_retention_in_days || vars.LOG_RETENTION_IN_DAYS || '7' }}
       METRICS_NAMESPACE: ${{ inputs.metrics_namespace != '' && inputs.metrics_namespace || vars.METRICS_NAMESPACE || 'Workshop/OrderProcessing' }}
       OTEL_MODE: ${{ inputs.otel_mode != '' && inputs.otel_mode || vars.OTEL_MODE || 'code' }}
@@ -523,7 +523,7 @@ jobs:
           | OTEL_EXPORT_STRATEGY | \`${OTEL_EXPORT_STRATEGY}\` |
           | OTel export route | ${OTEL_EXPORT_ROUTE} |
           | OTLP export status | ${OTLP_EXPORT_STATUS_LABEL} |
-          | OTLP authentication mode | \`${EFFECTIVE_OTLP_AUTHENTICATION_MODE}\` |
+          | OTLP backend auth requirement | \`${EFFECTIVE_OTLP_AUTHENTICATION_MODE}\` |
           | AWS_LAMBDA_EXEC_WRAPPER | \`${EFFECTIVE_LAMBDA_EXEC_WRAPPER}\` |
           | Application Signals execution role policy | \`${APPLICATION_SIGNALS_EXECUTION_ROLE_POLICY_ENABLED}\` |
           | EMF compatibility mode | ${EMF_STATUS} |
@@ -546,6 +546,25 @@ jobs:
           | OTLP traces | ${OTLP_EXPORT_STATUS_LABEL} |
           | OTLP metrics | ${OTLP_EXPORT_STATUS_LABEL} |
 
+          ## Collected Business Metrics
+
+          | Metric | Service | Meaning |
+          | :--- | :--- | :--- |
+          | \`OrdersCreated\` | \`order-api\` | Successful order creations |
+          | \`CreateOrderLatencyMs\` | \`order-api\` | Latency of \`POST /orders\` |
+          | \`CreateOrderErrors\` | \`order-api\` | Create-order failures |
+          | \`OrdersRead\` | \`order-api\` | Successful order reads |
+          | \`OrdersNotFound\` | \`order-api\` | Missing-order lookups |
+          | \`GetOrderErrors\` | \`order-api\` | Get-order failures |
+          | \`OrdersProcessed\` | \`order-processor\` | Processed order events |
+          | \`PaymentInvocationLatencyMs\` | \`order-processor\` | Payment invocation latency |
+          | \`OrderProcessorIgnoredEvents\` | \`order-processor\` | Ignored events |
+          | \`OrderProcessorDuplicateEvents\` | \`order-processor\` | Duplicate or already processed events |
+          | \`OrderProcessorErrors\` | \`order-processor\` | Order-processor failures |
+          | \`PaymentsSimulated\` | \`payment-simulator\` | Simulated payments |
+          | \`PaymentSimulationLatencyMs\` | \`payment-simulator\` | Payment simulation latency |
+          | \`PaymentSimulationErrors\` | \`payment-simulator\` | Payment simulation failures |
+
           ## Alarm And Dashboard Settings
 
           | Setting | Value |
@@ -564,7 +583,7 @@ jobs:
           - If \`OTEL_EXPORT_STRATEGY=collector\`, Lambdas export OTLP to a Collector first.
           - If \`OTEL_MODE=adot_layer\` and all direct OTLP inputs are empty, Terraform infers CloudWatch OTLP traces and metrics endpoints for the selected region.
           - If \`Application Signals execution role policy=true\`, Terraform attached \`CloudWatchLambdaApplicationSignalsExecutionRolePolicy\` to all Lambda execution roles.
-          - If \`effective_otlp_authentication_mode=sigv4\`, the direct OTLP route depends on AWS SigV4 authentication support from ADOT.
+          - If \`effective_otlp_authentication_mode=sigv4\`, the selected OTLP backend requires SigV4 and this repo relies on the AWS-managed ADOT Lambda layer to satisfy that requirement at runtime.
           - If all effective OTLP endpoints are empty, OTLP export is inactive and CloudWatch Logs / EMF / X-Ray remain the effective active path.
           EOF
 
@@ -597,6 +616,22 @@ jobs:
             "effective_otlp_metrics_endpoint": "${EFFECTIVE_OTLP_METRICS_ENDPOINT}",
             "metrics_namespace": "${METRICS_NAMESPACE}",
             "otel_metric_export_interval_ms": "${OTEL_METRIC_EXPORT_INTERVAL_MS}",
+            "collected_business_metrics": [
+              "OrdersCreated",
+              "CreateOrderLatencyMs",
+              "CreateOrderErrors",
+              "OrdersRead",
+              "OrdersNotFound",
+              "GetOrderErrors",
+              "OrdersProcessed",
+              "PaymentInvocationLatencyMs",
+              "OrderProcessorIgnoredEvents",
+              "OrderProcessorDuplicateEvents",
+              "OrderProcessorErrors",
+              "PaymentsSimulated",
+              "PaymentSimulationLatencyMs",
+              "PaymentSimulationErrors"
+            ],
             "create_observability_dashboard": "${CREATE_OBSERVABILITY_DASHBOARD}",
             "create_observability_alarms": "${CREATE_OBSERVABILITY_ALARMS}",
             "api_5xx_alarm_threshold": "${API_5XX_ALARM_THRESHOLD}",
