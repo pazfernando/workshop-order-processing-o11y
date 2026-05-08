@@ -27,26 +27,22 @@ data "aws_caller_identity" "current" {}
 
 data "aws_partition" "current" {}
 
-data "aws_vpcs" "default" {
+data "aws_subnets" "public" {
   count = var.otel_export_strategy == "collector" ? 1 : 0
 
   filter {
-    name   = "is-default"
+    name   = "map-public-ip-on-launch"
     values = ["true"]
   }
 }
 
-data "aws_vpcs" "available" {
+data "aws_subnets" "all" {
   count = var.otel_export_strategy == "collector" ? 1 : 0
 }
 
-data "aws_subnets" "observability_suite" {
+data "aws_subnet" "observability_suite" {
   count = var.otel_export_strategy == "collector" ? 1 : 0
-
-  filter {
-    name   = "vpc-id"
-    values = [local.observability_suite_vpc_id]
-  }
+  id    = local.observability_suite_subnet_id
 }
 
 data "aws_ami" "amazon_linux_2023" {
@@ -99,14 +95,12 @@ locals {
   observability_suite_dashboard_uid   = "workshop-order-processing"
   observability_suite_dashboard_title = "Workshop Order Processing"
   observability_suite_enabled         = var.otel_export_strategy == "collector"
-  observability_suite_vpc_id = local.observability_suite_enabled ? (
-    length(data.aws_vpcs.default[0].ids) > 0 ? sort(data.aws_vpcs.default[0].ids)[0] : (
-      length(data.aws_vpcs.available[0].ids) > 0 ? sort(data.aws_vpcs.available[0].ids)[0] : ""
+  observability_suite_subnet_id = local.observability_suite_enabled ? (
+    length(data.aws_subnets.public[0].ids) > 0 ? sort(data.aws_subnets.public[0].ids)[0] : (
+      length(data.aws_subnets.all[0].ids) > 0 ? sort(data.aws_subnets.all[0].ids)[0] : ""
     )
   ) : ""
-  observability_suite_subnet_id = local.observability_suite_enabled ? (
-    length(data.aws_subnets.observability_suite[0].ids) > 0 ? sort(data.aws_subnets.observability_suite[0].ids)[0] : ""
-  ) : ""
+  observability_suite_vpc_id = local.observability_suite_enabled ? data.aws_subnet.observability_suite[0].vpc_id : ""
   adot_supported_regions = toset([
     "ap-northeast-1",
     "ap-northeast-2",

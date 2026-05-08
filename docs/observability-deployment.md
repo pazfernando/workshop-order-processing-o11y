@@ -55,7 +55,7 @@ Alcance actual:
 - métricas OTLP: soportadas y visualizadas en Grafana vía Prometheus
 - trazas OTLP: soportadas y explorables en Grafana vía Tempo
 - logs OTLP: collector y Loki listos para usarse cuando la app los emita
-- red: usa el `default VPC` si existe; si no, Terraform cae al primer VPC y subnet disponibles en la región
+- red: intenta usar primero una subnet pública de la región y, si no existe, cae a la primera subnet disponible
 
 ## Recomendación
 
