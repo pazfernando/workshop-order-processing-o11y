@@ -169,7 +169,6 @@ Resumen operativo corto:
 | `create_observability_dashboard` | `true` | Si no quieres crear dashboard CloudWatch |
 | `create_observability_alarms` | `true` | Si no quieres crear alarmas CloudWatch |
 | `observability_suite_instance_type` | `t3.small` | Si necesitas más CPU o memoria para la suite |
-| `observability_suite_subnet_id` | vacío | Úsalo si quieres fijar la subnet de la EC2 o si no hay subnet pública auto-detectable |
 
 Estos son los inputs manuales expuestos por `workflow_dispatch`. Los thresholds de alarmas, `OTEL_METRIC_EXPORT_INTERVAL_MS`, `TF_STATE_BUCKET` y `TF_STATE_KEY` siguen entrando como variables del environment o del repositorio.
 
@@ -180,7 +179,7 @@ Reglas importantes:
 - `code + direct` sirve para OTLP genérico, no para CloudWatch OTLP directo
 - `OTEL_EXPORT_STRATEGY=collector` provisiona y usa la suite EC2 automáticamente
 - la suite en EC2 soporta hoy métricas OTLP hacia Prometheus y trazas OTLP hacia Tempo; Loki queda listo para logs OTLP futuros
-- la suite en EC2 intenta usar primero una subnet pública de la región; si no existe, debes definir `OBSERVABILITY_SUITE_SUBNET_ID`
+- la suite en EC2 intenta usar primero una subnet pública de la región y, si no existe, cae a la primera subnet disponible
 
 ## Despliegue local
 

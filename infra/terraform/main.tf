@@ -89,16 +89,15 @@ locals {
     payment_simulator = "/aws/lambda/${local.payment_simulator_function_name}"
     order_processor   = "/aws/lambda/${local.order_processor_function_name}"
   }
-  event_bus_arn                           = "arn:${data.aws_partition.current.partition}:events:${var.aws_region}:${data.aws_caller_identity.current.account_id}:event-bus/default"
-  deployment_environment                  = local.normalized_resource_prefix != "" ? local.normalized_resource_prefix : "local"
-  observability_suite_name                = "${local.name_prefix}-observability-suite"
-  observability_suite_dashboard_uid       = "workshop-order-processing"
-  observability_suite_dashboard_title     = "Workshop Order Processing"
-  observability_suite_enabled             = var.otel_export_strategy == "collector"
-  requested_observability_suite_subnet_id = trim(var.observability_suite_subnet_id, " ")
+  event_bus_arn                       = "arn:${data.aws_partition.current.partition}:events:${var.aws_region}:${data.aws_caller_identity.current.account_id}:event-bus/default"
+  deployment_environment              = local.normalized_resource_prefix != "" ? local.normalized_resource_prefix : "local"
+  observability_suite_name            = "${local.name_prefix}-observability-suite"
+  observability_suite_dashboard_uid   = "workshop-order-processing"
+  observability_suite_dashboard_title = "Workshop Order Processing"
+  observability_suite_enabled         = var.otel_export_strategy == "collector"
   observability_suite_subnet_id = local.observability_suite_enabled ? (
-    local.requested_observability_suite_subnet_id != "" ? local.requested_observability_suite_subnet_id : (
-      length(data.aws_subnets.public[0].ids) > 0 ? sort(data.aws_subnets.public[0].ids)[0] : ""
+    length(data.aws_subnets.public[0].ids) > 0 ? sort(data.aws_subnets.public[0].ids)[0] : (
+      length(data.aws_subnets.all[0].ids) > 0 ? sort(data.aws_subnets.all[0].ids)[0] : ""
     )
   ) : ""
   observability_suite_vpc_id = local.observability_suite_enabled ? data.aws_subnet.observability_suite[0].vpc_id : ""
@@ -327,7 +326,7 @@ resource "aws_instance" "observability_suite" {
   lifecycle {
     precondition {
       condition     = local.observability_suite_vpc_id != "" && local.observability_suite_subnet_id != ""
-      error_message = "Collector mode requires either a public subnet auto-discovered in the target region or an explicit observability_suite_subnet_id."
+      error_message = "Collector mode requires at least one usable subnet in the target account and region for the EC2 observability suite."
     }
     ignore_changes = [ami]
   }

@@ -168,12 +168,6 @@ variable "observability_suite_root_volume_size_gb" {
   default     = 20
 }
 
-variable "observability_suite_subnet_id" {
-  description = "Optional subnet ID for the observability suite EC2 instance. Use this when the account has no suitable public subnet auto-discovery path."
-  type        = string
-  default     = ""
-}
-
 variable "observability_suite_grafana_allowed_cidrs" {
   description = "CIDR ranges allowed to access Grafana on port 3000."
   type        = list(string)
