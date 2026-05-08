@@ -179,6 +179,7 @@ Reglas importantes:
 - `code + direct` sirve para OTLP genérico, no para CloudWatch OTLP directo
 - `OTEL_EXPORT_STRATEGY=collector` provisiona y usa la suite EC2 automáticamente
 - la suite en EC2 soporta hoy métricas OTLP hacia Prometheus y trazas OTLP hacia Tempo; Loki queda listo para logs OTLP futuros
+- la suite en EC2 usa el `default VPC` si existe; si no, Terraform cae al primer VPC y subnet disponibles en la región
 
 ## Despliegue local
 

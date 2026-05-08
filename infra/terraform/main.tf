@@ -27,17 +27,25 @@ data "aws_caller_identity" "current" {}
 
 data "aws_partition" "current" {}
 
-data "aws_vpc" "default" {
-  count   = var.otel_export_strategy == "collector" ? 1 : 0
-  default = true
+data "aws_vpcs" "default" {
+  count = var.otel_export_strategy == "collector" ? 1 : 0
+
+  filter {
+    name   = "is-default"
+    values = ["true"]
+  }
 }
 
-data "aws_subnets" "default" {
+data "aws_vpcs" "available" {
+  count = var.otel_export_strategy == "collector" ? 1 : 0
+}
+
+data "aws_subnets" "observability_suite" {
   count = var.otel_export_strategy == "collector" ? 1 : 0
 
   filter {
     name   = "vpc-id"
-    values = [data.aws_vpc.default[0].id]
+    values = [local.observability_suite_vpc_id]
   }
 }
 
@@ -91,6 +99,14 @@ locals {
   observability_suite_dashboard_uid   = "workshop-order-processing"
   observability_suite_dashboard_title = "Workshop Order Processing"
   observability_suite_enabled         = var.otel_export_strategy == "collector"
+  observability_suite_vpc_id = local.observability_suite_enabled ? (
+    length(data.aws_vpcs.default[0].ids) > 0 ? sort(data.aws_vpcs.default[0].ids)[0] : (
+      length(data.aws_vpcs.available[0].ids) > 0 ? sort(data.aws_vpcs.available[0].ids)[0] : ""
+    )
+  ) : ""
+  observability_suite_subnet_id = local.observability_suite_enabled ? (
+    length(data.aws_subnets.observability_suite[0].ids) > 0 ? sort(data.aws_subnets.observability_suite[0].ids)[0] : ""
+  ) : ""
   adot_supported_regions = toset([
     "ap-northeast-1",
     "ap-northeast-2",
@@ -241,7 +257,7 @@ resource "aws_security_group" "observability_suite" {
   count       = local.observability_suite_enabled ? 1 : 0
   name        = "${local.observability_suite_name}-sg"
   description = "Security group for the observability suite EC2 instance."
-  vpc_id      = data.aws_vpc.default[0].id
+  vpc_id      = local.observability_suite_vpc_id
 
   egress {
     from_port   = 0
@@ -306,12 +322,20 @@ resource "aws_instance" "observability_suite" {
   count                       = local.observability_suite_enabled ? 1 : 0
   ami                         = data.aws_ami.amazon_linux_2023[0].id
   instance_type               = var.observability_suite_instance_type
-  subnet_id                   = sort(data.aws_subnets.default[0].ids)[0]
+  subnet_id                   = local.observability_suite_subnet_id
   vpc_security_group_ids      = [aws_security_group.observability_suite[0].id]
   iam_instance_profile        = aws_iam_instance_profile.observability_suite[0].name
   associate_public_ip_address = true
   user_data                   = local.observability_suite_user_data
   user_data_replace_on_change = true
+
+  lifecycle {
+    precondition {
+      condition     = local.observability_suite_vpc_id != "" && local.observability_suite_subnet_id != ""
+      error_message = "Collector mode requires at least one usable VPC and subnet in the target account and region for the EC2 observability suite."
+    }
+    ignore_changes = [ami]
+  }
 
   root_block_device {
     volume_size = var.observability_suite_root_volume_size_gb
@@ -320,10 +344,6 @@ resource "aws_instance" "observability_suite" {
 
   tags = {
     Name = local.observability_suite_name
-  }
-
-  lifecycle {
-    ignore_changes = [ami]
   }
 }
 
