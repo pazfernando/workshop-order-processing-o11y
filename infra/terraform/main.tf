@@ -224,6 +224,7 @@ locals {
     grafana_datasources_b64        = base64encode(local.grafana_datasources_yaml)
     grafana_dashboard_provider_b64 = base64encode(local.grafana_dashboard_provider_yaml)
     grafana_dashboard_b64          = base64encode(local.grafana_dashboard_json)
+    grafana_admin_password_b64     = base64encode(local.effective_grafana_admin_password)
   }) : null
   otel_common_env = {
     OBSERVABILITY_OTEL_ENABLED           = var.otel_mode == "code" ? "true" : "false"
