@@ -109,6 +109,6 @@ output "observability_suite_grafana_admin_user" {
 
 output "observability_suite_grafana_admin_password" {
   description = "Grafana admin password for the observability suite."
-  value       = try(random_password.grafana_admin_password[0].result, null)
+  value       = local.observability_suite_enabled ? local.effective_grafana_admin_password : null
   sensitive   = true
 }

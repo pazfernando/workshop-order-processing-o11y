@@ -162,6 +162,13 @@ variable "observability_suite_instance_type" {
   default     = "t3.small"
 }
 
+variable "observability_suite_grafana_admin_password" {
+  description = "Optional fixed Grafana admin password for the observability suite. If empty, Terraform generates one."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "observability_suite_root_volume_size_gb" {
   description = "Root volume size in GiB for the observability suite EC2 instance."
   type        = number

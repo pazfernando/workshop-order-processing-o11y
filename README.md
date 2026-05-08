@@ -170,7 +170,7 @@ Resumen operativo corto:
 | `create_observability_alarms` | `true` | Si no quieres crear alarmas CloudWatch |
 | `observability_suite_instance_type` | `t3.small` | Si necesitas más CPU o memoria para la suite |
 
-Estos son los inputs manuales expuestos por `workflow_dispatch`. Los thresholds de alarmas, `OTEL_METRIC_EXPORT_INTERVAL_MS`, `TF_STATE_BUCKET` y `TF_STATE_KEY` siguen entrando como variables del environment o del repositorio.
+Estos son los inputs manuales expuestos por `workflow_dispatch`. Los thresholds de alarmas, `OTEL_METRIC_EXPORT_INTERVAL_MS`, `TF_STATE_BUCKET`, `TF_STATE_KEY` y `OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD` siguen entrando como variables del environment o del repositorio.
 
 Reglas importantes:
 
@@ -180,6 +180,7 @@ Reglas importantes:
 - `OTEL_EXPORT_STRATEGY=collector` provisiona y usa la suite EC2 automáticamente
 - la suite en EC2 soporta hoy métricas OTLP hacia Prometheus y trazas OTLP hacia Tempo; Loki queda listo para logs OTLP futuros
 - la suite en EC2 intenta usar primero una subnet pública de la región y, si no existe, cae a la primera subnet disponible
+- si defines `OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD` en las variables de GitHub, Grafana usará esa clave fija; si no, Terraform genera una aleatoria
 
 ## Despliegue local
 

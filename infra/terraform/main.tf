@@ -95,12 +95,16 @@ locals {
   observability_suite_dashboard_uid   = "workshop-order-processing"
   observability_suite_dashboard_title = "Workshop Order Processing"
   observability_suite_enabled         = var.otel_export_strategy == "collector"
+  configured_grafana_admin_password   = trim(var.observability_suite_grafana_admin_password, " ")
   observability_suite_subnet_id = local.observability_suite_enabled ? (
     length(data.aws_subnets.public[0].ids) > 0 ? sort(data.aws_subnets.public[0].ids)[0] : (
       length(data.aws_subnets.all[0].ids) > 0 ? sort(data.aws_subnets.all[0].ids)[0] : ""
     )
   ) : ""
   observability_suite_vpc_id = local.observability_suite_enabled ? data.aws_subnet.observability_suite[0].vpc_id : ""
+  effective_grafana_admin_password = local.observability_suite_enabled ? (
+    local.configured_grafana_admin_password != "" ? local.configured_grafana_admin_password : random_password.grafana_admin_password[0].result
+  ) : ""
   adot_supported_regions = toset([
     "ap-northeast-1",
     "ap-northeast-2",
@@ -204,7 +208,7 @@ locals {
   }) : ""
   observability_suite_compose = local.observability_suite_enabled ? templatefile("${path.module}/../observability-suite/docker-compose.yml.tftpl", {
     grafana_admin_user     = "admin"
-    grafana_admin_password = random_password.grafana_admin_password[0].result
+    grafana_admin_password = local.effective_grafana_admin_password
     grafana_image          = "grafana/grafana:latest"
     alloy_image            = "grafana/alloy:latest"
     loki_image             = "grafana/loki:latest"
@@ -242,7 +246,7 @@ locals {
 }
 
 resource "random_password" "grafana_admin_password" {
-  count   = local.observability_suite_enabled ? 1 : 0
+  count   = local.observability_suite_enabled && local.configured_grafana_admin_password == "" ? 1 : 0
   length  = 20
   special = false
 }
