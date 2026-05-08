@@ -119,6 +119,8 @@ locals {
       local.otlp_export_status == "active" ? "backend-defined" : "inactive"
     )
   )
+  effective_lambda_exec_wrapper           = var.otel_mode == "adot_layer" ? "/opt/otel-handler" : ""
+  application_signals_role_policy_enabled = var.otel_mode == "adot_layer"
   otel_common_env = {
     OBSERVABILITY_OTEL_ENABLED           = var.otel_mode == "code" ? "true" : "false"
     OBSERVABILITY_EMF_COMPATIBILITY_MODE = var.observability_emf_compatibility_mode ? "true" : "false"
@@ -134,7 +136,7 @@ locals {
     OTEL_EXPORT_STRATEGY                 = var.otel_export_strategy
   }
   lambda_wrapper_env = var.otel_mode == "adot_layer" ? {
-    AWS_LAMBDA_EXEC_WRAPPER = "/opt/otel-instrument"
+    AWS_LAMBDA_EXEC_WRAPPER = local.effective_lambda_exec_wrapper
   } : {}
   adot_layer_arns = var.otel_mode == "adot_layer" ? [local.effective_adot_lambda_layer_arn] : []
 }
@@ -226,6 +228,12 @@ resource "aws_iam_role_policy_attachment" "create_order_xray" {
   policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
 }
 
+resource "aws_iam_role_policy_attachment" "create_order_application_signals" {
+  count      = local.application_signals_role_policy_enabled ? 1 : 0
+  role       = aws_iam_role.create_order.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchLambdaApplicationSignalsExecutionRolePolicy"
+}
+
 resource "aws_iam_role_policy_attachment" "get_order_logs" {
   role       = aws_iam_role.get_order.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
@@ -234,6 +242,12 @@ resource "aws_iam_role_policy_attachment" "get_order_logs" {
 resource "aws_iam_role_policy_attachment" "get_order_xray" {
   role       = aws_iam_role.get_order.name
   policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "get_order_application_signals" {
+  count      = local.application_signals_role_policy_enabled ? 1 : 0
+  role       = aws_iam_role.get_order.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchLambdaApplicationSignalsExecutionRolePolicy"
 }
 
 resource "aws_iam_role_policy_attachment" "payment_simulator_logs" {
@@ -246,6 +260,12 @@ resource "aws_iam_role_policy_attachment" "payment_simulator_xray" {
   policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
 }
 
+resource "aws_iam_role_policy_attachment" "payment_simulator_application_signals" {
+  count      = local.application_signals_role_policy_enabled ? 1 : 0
+  role       = aws_iam_role.payment_simulator.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchLambdaApplicationSignalsExecutionRolePolicy"
+}
+
 resource "aws_iam_role_policy_attachment" "order_processor_logs" {
   role       = aws_iam_role.order_processor.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
@@ -254,6 +274,12 @@ resource "aws_iam_role_policy_attachment" "order_processor_logs" {
 resource "aws_iam_role_policy_attachment" "order_processor_xray" {
   role       = aws_iam_role.order_processor.name
   policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "order_processor_application_signals" {
+  count      = local.application_signals_role_policy_enabled ? 1 : 0
+  role       = aws_iam_role.order_processor.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchLambdaApplicationSignalsExecutionRolePolicy"
 }
 
 resource "aws_cloudwatch_log_group" "api_access" {

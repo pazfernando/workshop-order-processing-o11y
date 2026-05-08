@@ -57,6 +57,16 @@ output "effective_otlp_authentication_mode" {
   value       = local.effective_otlp_authentication_mode
 }
 
+output "effective_lambda_exec_wrapper" {
+  description = "Effective AWS_LAMBDA_EXEC_WRAPPER value configured for the Lambda functions."
+  value       = local.effective_lambda_exec_wrapper
+}
+
+output "application_signals_execution_role_policy_enabled" {
+  description = "Whether the Lambda execution roles attach CloudWatchLambdaApplicationSignalsExecutionRolePolicy."
+  value       = local.application_signals_role_policy_enabled
+}
+
 output "effective_adot_lambda_layer_arn" {
   description = "Effective ADOT Lambda layer ARN configured for the Lambda functions."
   value       = local.effective_adot_lambda_layer_arn

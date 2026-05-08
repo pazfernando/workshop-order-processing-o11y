@@ -17,6 +17,11 @@ Hay dos decisiones separadas:
 | `OTEL_MODE` | `adot_layer` | Un Lambda Layer de ADOT inicializa OTel antes del handler | Útil cuando quieres sacar el bootstrap fuera del código |
 | `ADOT_LAMBDA_LAYER_ARN` | ARN o vacío | ARN del layer ADOT | Obligatorio si `OTEL_MODE=adot_layer` |
 
+Notas para este repo:
+
+- con el layer Node.js administrado por AWS usado aquí, el wrapper efectivo es `AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-handler`
+- cuando `OTEL_MODE=adot_layer`, Terraform adjunta `CloudWatchLambdaApplicationSignalsExecutionRolePolicy` a los execution roles de las Lambdas
+
 ### 2. A dónde se exporta la telemetría
 
 | Variable | Valores | Qué significa | Cuándo usarlo |
@@ -147,6 +152,7 @@ Nota:
 - Para CloudWatch directo usa `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=https://xray.<region>.amazonaws.com/v1/traces` y `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=https://monitoring.<region>.amazonaws.com/v1/metrics`.
 - Los endpoints OTLP de CloudWatch requieren autenticación `SigV4`.
 - En este repo, el camino soportado para CloudWatch directo es `OTEL_MODE=adot_layer`.
+- En este repo, el wrapper efectivo para ese layer Node.js es `/opt/otel-handler`.
 
 ### Ejemplo 3: deploy con Collector
 
@@ -182,6 +188,8 @@ Resultado esperado:
 - Terraform infiere `https://xray.<region>.amazonaws.com/v1/traces`
 - Terraform infiere `https://monitoring.<region>.amazonaws.com/v1/metrics`
 - el output `effective_otlp_authentication_mode` queda en `sigv4`
+- el output `effective_lambda_exec_wrapper` queda en `/opt/otel-handler`
+- el output `application_signals_execution_role_policy_enabled` queda en `true`
 
 ## Collectors de referencia
 

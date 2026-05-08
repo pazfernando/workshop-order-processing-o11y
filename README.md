@@ -116,9 +116,11 @@ Resumen operativo corto:
 - Default del repo hoy: `OTEL_MODE=code` y `OTEL_EXPORT_STRATEGY=direct`
 - Arquitectura objetivo: `OTEL_MODE=code` y `OTEL_EXPORT_STRATEGY=collector`
 - Si usas `adot_layer`, debes definir `ADOT_LAMBDA_LAYER_ARN`
+- Si usas `adot_layer` en este repo Node.js, Terraform configura `AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-handler`
 - Si usas `collector`, debes definir `OTEL_COLLECTOR_ENDPOINT`
 - Si usas `direct` con `adot_layer` y no defines overrides, Terraform infiere CloudWatch OTLP por señal en la región actual
 - Si usas `direct` con `code`, no apuntes a CloudWatch OTLP directo con este repo: los exporters en código no firman SigV4
+- Si usas `adot_layer`, Terraform adjunta `CloudWatchLambdaApplicationSignalsExecutionRolePolicy` a los execution roles de las Lambdas
 
 ## Despliegue local
 
@@ -305,6 +307,8 @@ Notas para `direct`:
 
 - con `OTEL_MODE=adot_layer`, si dejas vacíos `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` y `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`, Terraform infiere `https://xray.<region>.amazonaws.com/v1/traces` y `https://monitoring.<region>.amazonaws.com/v1/metrics`
 - esos endpoints de CloudWatch requieren autenticación `SigV4`
+- con el layer Node.js administrado por AWS usado en este repo, el wrapper efectivo es `/opt/otel-handler`
+- cuando `OTEL_MODE=adot_layer`, Terraform adjunta `CloudWatchLambdaApplicationSignalsExecutionRolePolicy` a cada Lambda
 - este repo solo considera soportado ese camino con `OTEL_MODE=adot_layer`
 - `OBSERVABILITY_EMF_COMPATIBILITY_MODE` opcional
 - `CREATE_OBSERVABILITY_DASHBOARD` opcional

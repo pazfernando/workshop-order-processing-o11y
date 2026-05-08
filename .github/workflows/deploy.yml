@@ -268,6 +268,10 @@ jobs:
             exit 1
           fi
 
+          if [ "$OTEL_MODE" = "adot_layer" ]; then
+            echo "Using ADOT Node.js Lambda layer with AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-handler and CloudWatchLambdaApplicationSignalsExecutionRolePolicy attached by Terraform."
+          fi
+
           if [ "$OTEL_EXPORT_STRATEGY" = "collector" ] && [ -z "$OTEL_COLLECTOR_ENDPOINT" ] && [ -z "$OTEL_COLLECTOR_TRACES_ENDPOINT" ] && [ -z "$OTEL_COLLECTOR_METRICS_ENDPOINT" ]; then
             echo "Collector strategy selected but no collector OTLP endpoint was provided." >&2
             exit 1
@@ -460,6 +464,8 @@ jobs:
           EFFECTIVE_OTLP_TRACES_ENDPOINT="$(terraform -chdir=infra/terraform output -raw effective_otlp_traces_endpoint || true)"
           EFFECTIVE_OTLP_METRICS_ENDPOINT="$(terraform -chdir=infra/terraform output -raw effective_otlp_metrics_endpoint || true)"
           EFFECTIVE_OTLP_AUTHENTICATION_MODE="$(terraform -chdir=infra/terraform output -raw effective_otlp_authentication_mode || true)"
+          EFFECTIVE_LAMBDA_EXEC_WRAPPER="$(terraform -chdir=infra/terraform output -raw effective_lambda_exec_wrapper || true)"
+          APPLICATION_SIGNALS_EXECUTION_ROLE_POLICY_ENABLED="$(terraform -chdir=infra/terraform output -raw application_signals_execution_role_policy_enabled || true)"
           EFFECTIVE_ADOT_LAMBDA_LAYER_ARN="$(terraform -chdir=infra/terraform output -raw effective_adot_lambda_layer_arn || true)"
           OTLP_EXPORT_STATUS="$(terraform -chdir=infra/terraform output -raw otlp_export_status || true)"
 
@@ -518,6 +524,8 @@ jobs:
           | OTel export route | ${OTEL_EXPORT_ROUTE} |
           | OTLP export status | ${OTLP_EXPORT_STATUS_LABEL} |
           | OTLP authentication mode | \`${EFFECTIVE_OTLP_AUTHENTICATION_MODE}\` |
+          | AWS_LAMBDA_EXEC_WRAPPER | \`${EFFECTIVE_LAMBDA_EXEC_WRAPPER}\` |
+          | Application Signals execution role policy | \`${APPLICATION_SIGNALS_EXECUTION_ROLE_POLICY_ENABLED}\` |
           | EMF compatibility mode | ${EMF_STATUS} |
           | Requested ADOT Lambda Layer ARN | \`${ADOT_LAMBDA_LAYER_ARN}\` |
           | Effective ADOT Lambda Layer ARN | \`${EFFECTIVE_ADOT_LAMBDA_LAYER_ARN}\` |
@@ -551,10 +559,11 @@ jobs:
           ## Interpretation
 
           - If \`OTEL_MODE=code\`, the application initializes OpenTelemetry from \`src/shared/otel-bootstrap.js\`.
-          - If \`OTEL_MODE=adot_layer\`, the Lambda Layer is responsible for SDK bootstrap.
+          - If \`OTEL_MODE=adot_layer\`, the Lambda Layer is responsible for SDK bootstrap and this repo configures \`AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-handler\` for the AWS-managed Node.js layer in use.
           - If \`OTEL_EXPORT_STRATEGY=direct\`, Lambdas export OTLP directly to the final backend.
           - If \`OTEL_EXPORT_STRATEGY=collector\`, Lambdas export OTLP to a Collector first.
           - If \`OTEL_MODE=adot_layer\` and all direct OTLP inputs are empty, Terraform infers CloudWatch OTLP traces and metrics endpoints for the selected region.
+          - If \`Application Signals execution role policy=true\`, Terraform attached \`CloudWatchLambdaApplicationSignalsExecutionRolePolicy\` to all Lambda execution roles.
           - If \`effective_otlp_authentication_mode=sigv4\`, the direct OTLP route depends on AWS SigV4 authentication support from ADOT.
           - If all effective OTLP endpoints are empty, OTLP export is inactive and CloudWatch Logs / EMF / X-Ray remain the effective active path.
           EOF
@@ -578,6 +587,8 @@ jobs:
             "otel_export_route": "${OTEL_EXPORT_ROUTE}",
             "otlp_export_status": "${OTLP_EXPORT_STATUS}",
             "effective_otlp_authentication_mode": "${EFFECTIVE_OTLP_AUTHENTICATION_MODE}",
+            "effective_lambda_exec_wrapper": "${EFFECTIVE_LAMBDA_EXEC_WRAPPER}",
+            "application_signals_execution_role_policy_enabled": "${APPLICATION_SIGNALS_EXECUTION_ROLE_POLICY_ENABLED}",
             "observability_emf_compatibility_mode": "${OBSERVABILITY_EMF_COMPATIBILITY_MODE}",
             "requested_adot_lambda_layer_arn": "${ADOT_LAMBDA_LAYER_ARN}",
             "effective_adot_lambda_layer_arn": "${EFFECTIVE_ADOT_LAMBDA_LAYER_ARN}",

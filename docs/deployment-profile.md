@@ -103,6 +103,8 @@ Resultado:
 - Terraform infiere `https://xray.<region>.amazonaws.com/v1/traces`
 - Terraform infiere `https://monitoring.<region>.amazonaws.com/v1/metrics`
 - la ruta directa depende de autenticación `SigV4`
+- el wrapper efectivo esperado para este repo Node.js es `/opt/otel-handler`
+- Terraform adjunta `CloudWatchLambdaApplicationSignalsExecutionRolePolicy` a los execution roles
 
 ### Caso 2: activar Collector
 
