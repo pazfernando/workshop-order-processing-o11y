@@ -1,0 +1,65 @@
+otelcol.receiver.otlp "workshop" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    metrics = [otelcol.processor.batch.metrics.input]
+    logs    = [otelcol.processor.batch.logs.input]
+    traces  = [otelcol.processor.batch.traces.input]
+  }
+}
+
+otelcol.processor.batch "metrics" {
+  output {
+    metrics = [otelcol.exporter.prometheus.workshop.input]
+  }
+}
+
+otelcol.processor.batch "logs" {
+  output {
+    logs = [otelcol.exporter.otlphttp.loki.input]
+  }
+}
+
+otelcol.processor.batch "traces" {
+  output {
+    traces = [otelcol.exporter.otlp.tempo.input]
+  }
+}
+
+otelcol.exporter.prometheus "workshop" {
+  forward_to                      = [prometheus.remote_write.local.receiver]
+  add_metric_suffixes             = true
+  include_scope_labels            = true
+  resource_to_telemetry_conversion = true
+}
+
+prometheus.remote_write "local" {
+  external_labels = {
+    deployment_environment = "${deployment_environment}",
+  }
+
+  endpoint {
+    url = "${prometheus_remote_write}"
+  }
+}
+
+otelcol.exporter.otlphttp "loki" {
+  client {
+    endpoint = "${loki_otlp_endpoint}"
+  }
+}
+
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = "${tempo_otlp_grpc_endpoint}"
+    tls {
+      insecure = true
+    }
+  }
+}

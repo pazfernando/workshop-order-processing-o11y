@@ -65,6 +65,7 @@ Aunque el código ya está preparado con abstracciones `otel-first`, con el perf
 | `OBSERVABILITY_EMF_COMPATIBILITY_MODE` | `true` |
 | `CREATE_OBSERVABILITY_DASHBOARD` | `true` |
 | `CREATE_OBSERVABILITY_ALARMS` | `true` |
+| `CREATE_OBSERVABILITY_SUITE` | `false` |
 
 ## Qué cambia si SRE / DevOps aplica overrides
 
@@ -120,6 +121,7 @@ Resultado:
 
 - la app sigue inicializando OTel desde código
 - las Lambdas exportan OTLP al Collector
+- si además `CREATE_OBSERVABILITY_SUITE=true`, Terraform puede inferir los endpoints de trazas y métricas hacia Alloy
 
 ### Caso 3: activar ADOT Layer + Collector
 
@@ -156,6 +158,7 @@ Interpretación:
 - la convención de diseño es `otel-first`
 - pero la operación efectiva sigue descansando en CloudWatch Logs, EMF y X-Ray
 - OTLP directo a CloudWatch no se infiere en este perfil porque el bootstrap sigue en código
+- la suite EC2 de Grafana/Alloy/Prometheus/Tempo/Loki no forma parte del perfil por defecto; se activa explícitamente
 
 ### Para avanzar a una operación más madura
 

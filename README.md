@@ -12,6 +12,7 @@ Caso base para talleres técnicos senior sobre arquitectura serverless, resilien
 - CloudWatch Logs concentra logs JSON de cada Lambda y access logs del API.
 - CloudWatch Metrics recibe métricas custom vía Embedded Metric Format (EMF) sin librerías adicionales.
 - AWS X-Ray queda habilitado en las Lambdas para ver latencia y errores por función.
+- La suite opcional de observabilidad en EC2 usa Alloy como collector OTLP, Prometheus como backend de métricas, Tempo como backend de trazas, Grafana como visualizador y Loki como backend listo para logs.
 - La base de instrumentación compartida vive en `src/shared/observability.js` y la convención del repositorio es `otel-first`, preservando compatibilidad temporal con EMF para CloudWatch.
 
 ```mermaid
@@ -72,6 +73,7 @@ flowchart LR
 - Access logs para API Gateway HTTP API.
 - Dashboard de CloudWatch con métricas técnicas y de negocio.
 - Alarmas básicas para 5xx del API, errores del procesador y latencia del simulador de pago.
+- Suite opcional en EC2 con Grafana, Alloy, Prometheus, Tempo y Loki para visualizar métricas y trazas OTLP y dejar Loki listo para logs futuros.
 
 ### Métricas de negocio recolectadas
 
@@ -143,6 +145,7 @@ Resumen operativo corto:
 - Si usas `adot_layer`, debes definir `ADOT_LAMBDA_LAYER_ARN`
 - Si usas `adot_layer` en este repo Node.js, Terraform configura `AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-handler`
 - Si usas `collector`, debes definir `OTEL_COLLECTOR_ENDPOINT`
+- Si habilitas la suite de observabilidad con `collector` y no defines `OTEL_COLLECTOR_METRICS_ENDPOINT`, Terraform infiere el endpoint HTTP de Alloy para métricas
 - Si usas `direct` con `adot_layer` y no defines overrides, Terraform infiere CloudWatch OTLP por señal en la región actual
 - Si usas `direct` con `code`, no apuntes a CloudWatch OTLP directo con este repo: los exporters en código no firman SigV4
 - Si usas `adot_layer`, Terraform adjunta `CloudWatchLambdaApplicationSignalsExecutionRolePolicy` a los execution roles de las Lambdas
@@ -166,6 +169,8 @@ Resumen operativo corto:
 | `observability_emf_compatibility_mode` | `true` | Si quieres apagar EMF y quedarte solo con OTLP |
 | `create_observability_dashboard` | `true` | Si no quieres crear dashboard CloudWatch |
 | `create_observability_alarms` | `true` | Si no quieres crear alarmas CloudWatch |
+| `create_observability_suite` | `false` | Para provisionar la EC2 con Grafana, Alloy, Prometheus, Tempo y Loki |
+| `observability_suite_instance_type` | `t3.small` | Si necesitas más CPU o memoria para la suite |
 
 Estos son los inputs manuales expuestos por `workflow_dispatch`. Los thresholds de alarmas, `OTEL_METRIC_EXPORT_INTERVAL_MS`, `TF_STATE_BUCKET` y `TF_STATE_KEY` siguen entrando como variables del environment o del repositorio.
 
@@ -174,6 +179,7 @@ Reglas importantes:
 - `adot_layer + direct` con endpoints directos vacíos infiere `X-Ray` y `CloudWatch Metrics` por OTLP para la región actual
 - ese camino requiere `SigV4`, usa `AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-handler` y adjunta `CloudWatchLambdaApplicationSignalsExecutionRolePolicy`
 - `code + direct` sirve para OTLP genérico, no para CloudWatch OTLP directo
+- la suite en EC2 soporta hoy métricas OTLP hacia Prometheus y trazas OTLP hacia Tempo; Loki queda listo para logs OTLP futuros
 
 ## Despliegue local
 
@@ -215,6 +221,11 @@ export OTEL_METRIC_EXPORT_INTERVAL_MS="10000"
 export OBSERVABILITY_EMF_COMPATIBILITY_MODE="true"
 export CREATE_OBSERVABILITY_DASHBOARD="true"
 export CREATE_OBSERVABILITY_ALARMS="true"
+export CREATE_OBSERVABILITY_SUITE="false"
+export OBSERVABILITY_SUITE_INSTANCE_TYPE="t3.small"
+export OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB="20"
+export OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS='["0.0.0.0/0"]'
+export OBSERVABILITY_SUITE_OTLP_ALLOWED_CIDRS='["0.0.0.0/0"]'
 export API_5XX_ALARM_THRESHOLD="1"
 export ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD="1"
 export PAYMENT_LATENCY_ALARM_THRESHOLD_MS="3000"
@@ -274,6 +285,11 @@ terraform -chdir=infra/terraform apply \
   -var="observability_emf_compatibility_mode=${OBSERVABILITY_EMF_COMPATIBILITY_MODE}" \
   -var="create_observability_dashboard=${CREATE_OBSERVABILITY_DASHBOARD}" \
   -var="create_observability_alarms=${CREATE_OBSERVABILITY_ALARMS}" \
+  -var="create_observability_suite=${CREATE_OBSERVABILITY_SUITE}" \
+  -var="observability_suite_instance_type=${OBSERVABILITY_SUITE_INSTANCE_TYPE}" \
+  -var="observability_suite_root_volume_size_gb=${OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB}" \
+  -var="observability_suite_grafana_allowed_cidrs=${OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS}" \
+  -var="observability_suite_otlp_allowed_cidrs=${OBSERVABILITY_SUITE_OTLP_ALLOWED_CIDRS}" \
   -var="api_5xx_alarm_threshold=${API_5XX_ALARM_THRESHOLD}" \
   -var="order_processor_error_alarm_threshold=${ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD}" \
   -var="payment_latency_alarm_threshold_ms=${PAYMENT_LATENCY_ALARM_THRESHOLD_MS}"
@@ -316,6 +332,11 @@ terraform -chdir=infra/terraform destroy \
   -var="observability_emf_compatibility_mode=${OBSERVABILITY_EMF_COMPATIBILITY_MODE}" \
   -var="create_observability_dashboard=${CREATE_OBSERVABILITY_DASHBOARD}" \
   -var="create_observability_alarms=${CREATE_OBSERVABILITY_ALARMS}" \
+  -var="create_observability_suite=${CREATE_OBSERVABILITY_SUITE}" \
+  -var="observability_suite_instance_type=${OBSERVABILITY_SUITE_INSTANCE_TYPE}" \
+  -var="observability_suite_root_volume_size_gb=${OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB}" \
+  -var="observability_suite_grafana_allowed_cidrs=${OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS}" \
+  -var="observability_suite_otlp_allowed_cidrs=${OBSERVABILITY_SUITE_OTLP_ALLOWED_CIDRS}" \
   -var="api_5xx_alarm_threshold=${API_5XX_ALARM_THRESHOLD}" \
   -var="order_processor_error_alarm_threshold=${ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD}" \
   -var="payment_latency_alarm_threshold_ms=${PAYMENT_LATENCY_ALARM_THRESHOLD_MS}"
@@ -358,6 +379,11 @@ Variables:
 - `OBSERVABILITY_EMF_COMPATIBILITY_MODE` opcional
 - `CREATE_OBSERVABILITY_DASHBOARD` opcional
 - `CREATE_OBSERVABILITY_ALARMS` opcional
+- `CREATE_OBSERVABILITY_SUITE` opcional
+- `OBSERVABILITY_SUITE_INSTANCE_TYPE` opcional
+- `OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB` opcional
+- `OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS` opcional
+- `OBSERVABILITY_SUITE_OTLP_ALLOWED_CIDRS` opcional
 - `API_5XX_ALARM_THRESHOLD` opcional
 - `ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD` opcional
 - `PAYMENT_LATENCY_ALARM_THRESHOLD_MS` opcional
@@ -370,6 +396,8 @@ Reglas para `direct`:
 - en este repo Node.js, ese camino usa `/opt/otel-handler`
 - Terraform adjunta `CloudWatchLambdaApplicationSignalsExecutionRolePolicy` cuando `OTEL_MODE=adot_layer`
 - `code + direct` no debe apuntar a CloudWatch OTLP directo
+- con `CREATE_OBSERVABILITY_SUITE=true` y `OTEL_EXPORT_STRATEGY=collector`, si no defines `OTEL_COLLECTOR_TRACES_ENDPOINT` ni `OTEL_COLLECTOR_METRICS_ENDPOINT`, Terraform infiere el endpoint OTLP HTTP de Alloy
+- la suite provisiona `Grafana + Alloy + Prometheus + Tempo + Loki` en una sola EC2 para workshops
 
 ### Backend remoto de Terraform en GitHub Actions
 

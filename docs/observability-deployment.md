@@ -40,6 +40,22 @@ Notas de este repo:
 | `adot_layer + direct` | ADOT arranca OTel y exporta directo | Habilita CloudWatch directo | Requiere SigV4 |
 | `adot_layer + collector` | ADOT arranca OTel y exporta a Collector | Más desacople | Mayor complejidad |
 
+## Suite EC2 opcional
+
+La suite opcional de este repo usa una sola EC2 para:
+
+- `Alloy` como collector OTLP
+- `Prometheus` como backend de métricas
+- `Tempo` como backend de trazas
+- `Grafana` como visualizador
+- `Loki` como backend listo para logs OTLP futuros
+
+Alcance actual:
+
+- métricas OTLP: soportadas y visualizadas en Grafana vía Prometheus
+- trazas OTLP: soportadas y explorables en Grafana vía Tempo
+- logs OTLP: collector y Loki listos para usarse cuando la app los emita
+
 ## Recomendación
 
 ### Hoy
@@ -126,6 +142,16 @@ Mueve el bootstrap fuera del código y centraliza la operación.
 | `TF_STATE_BUCKET` | bucket S3 o vacío | No | vacío si el workflow lo crea |
 | `TF_STATE_KEY` | key S3 o vacío | No | `${environment}/${STACK_NAME}.tfstate` |
 
+### Suite EC2
+
+| Variable | Valores permitidos | Obligatoria | Recomendado |
+| :--- | :--- | :--- | :--- |
+| `CREATE_OBSERVABILITY_SUITE` | `true`, `false` | No | `false` |
+| `OBSERVABILITY_SUITE_INSTANCE_TYPE` | tipo EC2 válido | No | `t3.small` |
+| `OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB` | entero positivo | No | `20` |
+| `OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS` | lista JSON de CIDRs | No | `["0.0.0.0/0"]` |
+| `OBSERVABILITY_SUITE_OTLP_ALLOWED_CIDRS` | lista JSON de CIDRs | No | `["0.0.0.0/0"]` |
+
 ## Ejemplos
 
 ### Ejemplo 1: deploy simple del repo
@@ -191,6 +217,23 @@ Resultado esperado:
 - el output `effective_lambda_exec_wrapper` queda en `/opt/otel-handler`
 - el output `application_signals_execution_role_policy_enabled` queda en `true`
 
+### Ejemplo 6: suite EC2 con Alloy + Grafana + Prometheus + Tempo + Loki
+
+```bash
+export CREATE_OBSERVABILITY_SUITE="true"
+export OBSERVABILITY_SUITE_INSTANCE_TYPE="t3.small"
+export OTEL_EXPORT_STRATEGY="collector"
+export OTEL_COLLECTOR_ENDPOINT=""
+export OTEL_COLLECTOR_TRACES_ENDPOINT=""
+export OTEL_COLLECTOR_METRICS_ENDPOINT=""
+```
+
+Resultado esperado:
+
+- Terraform crea una EC2 con Grafana, Alloy, Prometheus, Tempo y Loki
+- Terraform infiere el endpoint HTTP de Alloy para trazas y métricas si `collector` está activo y no diste endpoints explícitos
+- Grafana queda provisionado con un dashboard para las métricas de negocio actuales
+
 ## Collector de referencia
 
 El repo incluye estas configuraciones:
@@ -222,5 +265,6 @@ Reglas de validación de observabilidad:
 - si `OTEL_EXPORT_STRATEGY=collector`, `OTEL_COLLECTOR_ENDPOINT` debe existir
 - si `OTEL_EXPORT_STRATEGY=direct` y `OTEL_MODE=adot_layer`, dejar vacíos los endpoints directos hace que Terraform infiera CloudWatch OTLP por señal
 - si `OTEL_EXPORT_STRATEGY=direct` y `OTEL_MODE=code`, no uses endpoints OTLP de CloudWatch porque este repo no firma SigV4 en el bootstrap en código
+- si `CREATE_OBSERVABILITY_SUITE=true` y `OTEL_EXPORT_STRATEGY=collector`, puedes dejar vacíos `OTEL_COLLECTOR_TRACES_ENDPOINT` y `OTEL_COLLECTOR_METRICS_ENDPOINT`; Terraform los infiere hacia Alloy
 
 `teardown.yml` reutiliza las mismas variables para destruir el stack.

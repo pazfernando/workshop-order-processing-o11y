@@ -8,6 +8,10 @@ terraform {
       source  = "hashicorp/archive"
       version = "~> 2.7"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
     aws = {
       source  = "hashicorp/aws"
       version = "~> 6.0"
@@ -22,6 +26,41 @@ provider "aws" {
 data "aws_caller_identity" "current" {}
 
 data "aws_partition" "current" {}
+
+data "aws_vpc" "default" {
+  count   = var.create_observability_suite ? 1 : 0
+  default = true
+}
+
+data "aws_subnets" "default" {
+  count = var.create_observability_suite ? 1 : 0
+
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default[0].id]
+  }
+}
+
+data "aws_ami" "amazon_linux_2023" {
+  count       = var.create_observability_suite ? 1 : 0
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["al2023-ami-2023.*-x86_64"]
+  }
+
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+
+  filter {
+    name   = "state"
+    values = ["available"]
+  }
+}
 
 data "archive_file" "lambda_bundle" {
   type             = "zip"
@@ -46,8 +85,12 @@ locals {
     payment_simulator = "/aws/lambda/${local.payment_simulator_function_name}"
     order_processor   = "/aws/lambda/${local.order_processor_function_name}"
   }
-  event_bus_arn          = "arn:${data.aws_partition.current.partition}:events:${var.aws_region}:${data.aws_caller_identity.current.account_id}:event-bus/default"
-  deployment_environment = local.normalized_resource_prefix != "" ? local.normalized_resource_prefix : "local"
+  event_bus_arn                       = "arn:${data.aws_partition.current.partition}:events:${var.aws_region}:${data.aws_caller_identity.current.account_id}:event-bus/default"
+  deployment_environment              = local.normalized_resource_prefix != "" ? local.normalized_resource_prefix : "local"
+  observability_suite_name            = "${local.name_prefix}-observability-suite"
+  observability_suite_dashboard_uid   = "workshop-order-processing"
+  observability_suite_dashboard_title = "Workshop Order Processing"
+  observability_suite_enabled         = var.create_observability_suite
   adot_supported_regions = toset([
     "ap-northeast-1",
     "ap-northeast-2",
@@ -77,6 +120,8 @@ locals {
   collector_otlp_metrics_endpoint           = trim(var.otel_collector_metrics_endpoint, " ")
   inferred_cloudwatch_traces_otlp_endpoint  = "https://xray.${var.aws_region}.amazonaws.com/v1/traces"
   inferred_cloudwatch_metrics_otlp_endpoint = "https://monitoring.${var.aws_region}.amazonaws.com/v1/metrics"
+  observability_suite_otlp_http_endpoint    = local.observability_suite_enabled ? "http://${aws_eip.observability_suite[0].public_ip}:4318" : ""
+  observability_suite_otlp_grpc_endpoint    = local.observability_suite_enabled ? "${aws_eip.observability_suite[0].public_ip}:4317" : ""
   infer_cloudwatch_direct_endpoints = (
     var.otel_mode == "adot_layer" &&
     var.otel_export_strategy == "direct" &&
@@ -90,13 +135,21 @@ locals {
     length(regexall("^https://monitoring\\.[^.]+\\.amazonaws\\.com/v1/metrics$", local.direct_otlp_metrics_endpoint)) > 0 ||
     local.infer_cloudwatch_direct_endpoints
   )
-  effective_otlp_endpoint = var.otel_export_strategy == "collector" ? local.collector_otlp_base_endpoint : (
+  effective_otlp_endpoint = var.otel_export_strategy == "collector" ? (
+    local.collector_otlp_base_endpoint != "" ? local.collector_otlp_base_endpoint : (
+      local.observability_suite_enabled ? local.observability_suite_otlp_http_endpoint : ""
+    )
+    ) : (
     local.direct_otlp_base_endpoint != "" ? local.direct_otlp_base_endpoint : (
       local.infer_cloudwatch_direct_endpoints ? "cloudwatch-managed-per-signal" : ""
     )
   )
   effective_otlp_traces_endpoint = var.otel_export_strategy == "collector" ? (
-    local.collector_otlp_traces_endpoint != "" ? local.collector_otlp_traces_endpoint : local.collector_otlp_base_endpoint
+    local.collector_otlp_traces_endpoint != "" ? local.collector_otlp_traces_endpoint : (
+      local.collector_otlp_base_endpoint != "" ? local.collector_otlp_base_endpoint : (
+        local.observability_suite_enabled ? local.observability_suite_otlp_http_endpoint : ""
+      )
+    )
     ) : (
     local.direct_otlp_traces_endpoint != "" ? local.direct_otlp_traces_endpoint : (
       local.direct_otlp_base_endpoint != "" ? local.direct_otlp_base_endpoint : (
@@ -105,7 +158,11 @@ locals {
     )
   )
   effective_otlp_metrics_endpoint = var.otel_export_strategy == "collector" ? (
-    local.collector_otlp_metrics_endpoint != "" ? local.collector_otlp_metrics_endpoint : local.collector_otlp_base_endpoint
+    local.collector_otlp_metrics_endpoint != "" ? local.collector_otlp_metrics_endpoint : (
+      local.collector_otlp_base_endpoint != "" ? local.collector_otlp_base_endpoint : (
+        local.observability_suite_enabled ? local.observability_suite_otlp_http_endpoint : ""
+      )
+    )
     ) : (
     local.direct_otlp_metrics_endpoint != "" ? local.direct_otlp_metrics_endpoint : (
       local.direct_otlp_base_endpoint != "" ? local.direct_otlp_base_endpoint : (
@@ -121,6 +178,39 @@ locals {
   )
   effective_lambda_exec_wrapper           = var.otel_mode == "adot_layer" ? "/opt/otel-handler" : ""
   application_signals_role_policy_enabled = var.otel_mode == "adot_layer"
+  grafana_dashboard_json = local.observability_suite_enabled ? templatefile("${path.module}/../observability-suite/grafana-dashboard.json.tftpl", {
+    dashboard_title = local.observability_suite_dashboard_title
+  }) : ""
+  grafana_datasources_yaml        = local.observability_suite_enabled ? templatefile("${path.module}/../observability-suite/grafana-datasources.yml.tftpl", {}) : ""
+  grafana_dashboard_provider_yaml = local.observability_suite_enabled ? templatefile("${path.module}/../observability-suite/grafana-dashboard-provider.yml.tftpl", {}) : ""
+  prometheus_config_yaml          = local.observability_suite_enabled ? templatefile("${path.module}/../observability-suite/prometheus.yml.tftpl", {}) : ""
+  loki_config_yaml                = local.observability_suite_enabled ? templatefile("${path.module}/../observability-suite/loki-config.yml.tftpl", {}) : ""
+  tempo_config_yaml               = local.observability_suite_enabled ? templatefile("${path.module}/../observability-suite/tempo-config.yml.tftpl", {}) : ""
+  alloy_config = local.observability_suite_enabled ? templatefile("${path.module}/../observability-suite/alloy-config.alloy.tftpl", {
+    loki_otlp_endpoint       = "http://loki:3100/otlp"
+    prometheus_remote_write  = "http://prometheus:9090/api/v1/write"
+    tempo_otlp_grpc_endpoint = "tempo:4319"
+    deployment_environment   = local.deployment_environment
+  }) : ""
+  observability_suite_compose = local.observability_suite_enabled ? templatefile("${path.module}/../observability-suite/docker-compose.yml.tftpl", {
+    grafana_admin_user     = "admin"
+    grafana_admin_password = random_password.grafana_admin_password[0].result
+    grafana_image          = "grafana/grafana:latest"
+    alloy_image            = "grafana/alloy:latest"
+    loki_image             = "grafana/loki:latest"
+    tempo_image            = "grafana/tempo:latest"
+    prometheus_image       = "prom/prometheus:latest"
+  }) : ""
+  observability_suite_user_data = local.observability_suite_enabled ? templatefile("${path.module}/../observability-suite/user-data.sh.tftpl", {
+    compose_b64                    = base64encode(local.observability_suite_compose)
+    alloy_config_b64               = base64encode(local.alloy_config)
+    prometheus_config_b64          = base64encode(local.prometheus_config_yaml)
+    loki_config_b64                = base64encode(local.loki_config_yaml)
+    tempo_config_b64               = base64encode(local.tempo_config_yaml)
+    grafana_datasources_b64        = base64encode(local.grafana_datasources_yaml)
+    grafana_dashboard_provider_b64 = base64encode(local.grafana_dashboard_provider_yaml)
+    grafana_dashboard_b64          = base64encode(local.grafana_dashboard_json)
+  }) : null
   otel_common_env = {
     OBSERVABILITY_OTEL_ENABLED           = var.otel_mode == "code" ? "true" : "false"
     OBSERVABILITY_EMF_COMPATIBILITY_MODE = var.observability_emf_compatibility_mode ? "true" : "false"
@@ -139,6 +229,112 @@ locals {
     AWS_LAMBDA_EXEC_WRAPPER = local.effective_lambda_exec_wrapper
   } : {}
   adot_layer_arns = var.otel_mode == "adot_layer" ? [local.effective_adot_lambda_layer_arn] : []
+}
+
+resource "random_password" "grafana_admin_password" {
+  count   = local.observability_suite_enabled ? 1 : 0
+  length  = 20
+  special = false
+}
+
+resource "aws_security_group" "observability_suite" {
+  count       = local.observability_suite_enabled ? 1 : 0
+  name        = "${local.observability_suite_name}-sg"
+  description = "Security group for the observability suite EC2 instance."
+  vpc_id      = data.aws_vpc.default[0].id
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "observability_suite_grafana" {
+  for_each = local.observability_suite_enabled ? toset(var.observability_suite_grafana_allowed_cidrs) : toset([])
+
+  security_group_id = aws_security_group.observability_suite[0].id
+  cidr_ipv4         = each.value
+  from_port         = 3000
+  to_port           = 3000
+  ip_protocol       = "tcp"
+  description       = "Grafana access"
+}
+
+resource "aws_vpc_security_group_ingress_rule" "observability_suite_otlp_http" {
+  for_each = local.observability_suite_enabled ? toset(var.observability_suite_otlp_allowed_cidrs) : toset([])
+
+  security_group_id = aws_security_group.observability_suite[0].id
+  cidr_ipv4         = each.value
+  from_port         = 4318
+  to_port           = 4318
+  ip_protocol       = "tcp"
+  description       = "Alloy OTLP HTTP ingest"
+}
+
+resource "aws_vpc_security_group_ingress_rule" "observability_suite_otlp_grpc" {
+  for_each = local.observability_suite_enabled ? toset(var.observability_suite_otlp_allowed_cidrs) : toset([])
+
+  security_group_id = aws_security_group.observability_suite[0].id
+  cidr_ipv4         = each.value
+  from_port         = 4317
+  to_port           = 4317
+  ip_protocol       = "tcp"
+  description       = "Alloy OTLP gRPC ingest"
+}
+
+resource "aws_iam_role" "observability_suite" {
+  count              = local.observability_suite_enabled ? 1 : 0
+  name               = "${local.observability_suite_name}-role"
+  assume_role_policy = data.aws_iam_policy_document.ec2_assume_role.json
+}
+
+resource "aws_iam_role_policy_attachment" "observability_suite_ssm" {
+  count      = local.observability_suite_enabled ? 1 : 0
+  role       = aws_iam_role.observability_suite[0].name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_instance_profile" "observability_suite" {
+  count = local.observability_suite_enabled ? 1 : 0
+  name  = "${local.observability_suite_name}-profile"
+  role  = aws_iam_role.observability_suite[0].name
+}
+
+resource "aws_instance" "observability_suite" {
+  count                       = local.observability_suite_enabled ? 1 : 0
+  ami                         = data.aws_ami.amazon_linux_2023[0].id
+  instance_type               = var.observability_suite_instance_type
+  subnet_id                   = sort(data.aws_subnets.default[0].ids)[0]
+  vpc_security_group_ids      = [aws_security_group.observability_suite[0].id]
+  iam_instance_profile        = aws_iam_instance_profile.observability_suite[0].name
+  associate_public_ip_address = true
+  user_data                   = local.observability_suite_user_data
+  user_data_replace_on_change = true
+
+  root_block_device {
+    volume_size = var.observability_suite_root_volume_size_gb
+    volume_type = "gp3"
+  }
+
+  tags = {
+    Name = local.observability_suite_name
+  }
+
+  lifecycle {
+    ignore_changes = [ami]
+  }
+}
+
+resource "aws_eip" "observability_suite" {
+  count    = local.observability_suite_enabled ? 1 : 0
+  domain   = "vpc"
+  instance = aws_instance.observability_suite[0].id
+
+  tags = {
+    Name = "${local.observability_suite_name}-eip"
+  }
 }
 
 resource "aws_dynamodb_table" "orders" {
@@ -194,6 +390,17 @@ data "aws_iam_policy_document" "lambda_assume_role" {
     principals {
       type        = "Service"
       identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "ec2_assume_role" {
+  statement {
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["ec2.amazonaws.com"]
     }
   }
 }

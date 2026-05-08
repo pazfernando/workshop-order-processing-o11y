@@ -102,6 +102,19 @@ on:
         options:
           - "true"
           - "false"
+      create_observability_suite:
+        description: Provision the EC2 observability suite with Grafana, Alloy, Prometheus, Loki, and Tempo
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      observability_suite_instance_type:
+        description: EC2 instance type for the observability suite
+        required: false
+        default: t3.small
+        type: string
 
 jobs:
   deploy:
@@ -131,9 +144,14 @@ jobs:
       OBSERVABILITY_EMF_COMPATIBILITY_MODE: ${{ inputs.observability_emf_compatibility_mode != '' && inputs.observability_emf_compatibility_mode || vars.OBSERVABILITY_EMF_COMPATIBILITY_MODE || 'true' }}
       CREATE_OBSERVABILITY_DASHBOARD: ${{ inputs.create_observability_dashboard != '' && inputs.create_observability_dashboard || vars.CREATE_OBSERVABILITY_DASHBOARD || 'true' }}
       CREATE_OBSERVABILITY_ALARMS: ${{ inputs.create_observability_alarms != '' && inputs.create_observability_alarms || vars.CREATE_OBSERVABILITY_ALARMS || 'true' }}
+      CREATE_OBSERVABILITY_SUITE: ${{ inputs.create_observability_suite != '' && inputs.create_observability_suite || vars.CREATE_OBSERVABILITY_SUITE || 'false' }}
+      OBSERVABILITY_SUITE_INSTANCE_TYPE: ${{ inputs.observability_suite_instance_type != '' && inputs.observability_suite_instance_type || vars.OBSERVABILITY_SUITE_INSTANCE_TYPE || 't3.small' }}
+      OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB: ${{ vars.OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB != '' && vars.OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB || '20' }}
       API_5XX_ALARM_THRESHOLD: ${{ vars.API_5XX_ALARM_THRESHOLD != '' && vars.API_5XX_ALARM_THRESHOLD || '1' }}
       ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD: ${{ vars.ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD != '' && vars.ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD || '1' }}
       PAYMENT_LATENCY_ALARM_THRESHOLD_MS: ${{ vars.PAYMENT_LATENCY_ALARM_THRESHOLD_MS != '' && vars.PAYMENT_LATENCY_ALARM_THRESHOLD_MS || '3000' }}
+      OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS: ${{ vars.OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS != '' && vars.OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS || '["0.0.0.0/0"]' }}
+      OBSERVABILITY_SUITE_OTLP_ALLOWED_CIDRS: ${{ vars.OBSERVABILITY_SUITE_OTLP_ALLOWED_CIDRS != '' && vars.OBSERVABILITY_SUITE_OTLP_ALLOWED_CIDRS || '["0.0.0.0/0"]' }}
       TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
       TF_STATE_KEY: ${{ vars.TF_STATE_KEY }}
 
@@ -273,8 +291,12 @@ jobs:
           fi
 
           if [ "$OTEL_EXPORT_STRATEGY" = "collector" ] && [ -z "$OTEL_COLLECTOR_ENDPOINT" ] && [ -z "$OTEL_COLLECTOR_TRACES_ENDPOINT" ] && [ -z "$OTEL_COLLECTOR_METRICS_ENDPOINT" ]; then
-            echo "Collector strategy selected but no collector OTLP endpoint was provided." >&2
-            exit 1
+            if [ "$CREATE_OBSERVABILITY_SUITE" = "true" ]; then
+              echo "Collector strategy selected with observability suite enabled. Terraform will infer the Alloy OTLP HTTP endpoint for traces and metrics."
+            else
+              echo "Collector strategy selected but no collector OTLP endpoint was provided." >&2
+              exit 1
+            fi
           fi
 
           if [ "$OTEL_EXPORT_STRATEGY" = "direct" ] && [ -z "$OTEL_EXPORTER_OTLP_ENDPOINT" ] && [ -z "$OTEL_EXPORTER_OTLP_TRACES_ENDPOINT" ] && [ -z "$OTEL_EXPORTER_OTLP_METRICS_ENDPOINT" ]; then
@@ -447,6 +469,11 @@ jobs:
             -var="observability_emf_compatibility_mode=${OBSERVABILITY_EMF_COMPATIBILITY_MODE}" \
             -var="create_observability_dashboard=${CREATE_OBSERVABILITY_DASHBOARD}" \
             -var="create_observability_alarms=${CREATE_OBSERVABILITY_ALARMS}" \
+            -var="create_observability_suite=${CREATE_OBSERVABILITY_SUITE}" \
+            -var="observability_suite_instance_type=${OBSERVABILITY_SUITE_INSTANCE_TYPE}" \
+            -var="observability_suite_root_volume_size_gb=${OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB}" \
+            -var="observability_suite_grafana_allowed_cidrs=${OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS}" \
+            -var="observability_suite_otlp_allowed_cidrs=${OBSERVABILITY_SUITE_OTLP_ALLOWED_CIDRS}" \
             -var="api_5xx_alarm_threshold=${API_5XX_ALARM_THRESHOLD}" \
             -var="order_processor_error_alarm_threshold=${ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD}" \
             -var="payment_latency_alarm_threshold_ms=${PAYMENT_LATENCY_ALARM_THRESHOLD_MS}"
@@ -468,6 +495,12 @@ jobs:
           APPLICATION_SIGNALS_EXECUTION_ROLE_POLICY_ENABLED="$(terraform -chdir=infra/terraform output -raw application_signals_execution_role_policy_enabled || true)"
           EFFECTIVE_ADOT_LAMBDA_LAYER_ARN="$(terraform -chdir=infra/terraform output -raw effective_adot_lambda_layer_arn || true)"
           OTLP_EXPORT_STATUS="$(terraform -chdir=infra/terraform output -raw otlp_export_status || true)"
+          OBSERVABILITY_SUITE_ENABLED="$(terraform -chdir=infra/terraform output -raw observability_suite_enabled || true)"
+          OBSERVABILITY_SUITE_PUBLIC_IP="$(terraform -chdir=infra/terraform output -raw observability_suite_public_ip || true)"
+          OBSERVABILITY_SUITE_GRAFANA_URL="$(terraform -chdir=infra/terraform output -raw observability_suite_grafana_url || true)"
+          OBSERVABILITY_SUITE_GRAFANA_DASHBOARD_URL="$(terraform -chdir=infra/terraform output -raw observability_suite_grafana_dashboard_url || true)"
+          OBSERVABILITY_SUITE_OTLP_HTTP_ENDPOINT="$(terraform -chdir=infra/terraform output -raw observability_suite_otlp_http_endpoint || true)"
+          OBSERVABILITY_SUITE_OTLP_GRPC_ENDPOINT="$(terraform -chdir=infra/terraform output -raw observability_suite_otlp_grpc_endpoint || true)"
 
           if [ "$OTEL_MODE" = "adot_layer" ]; then
             OTEL_INITIALIZATION="ADOT Lambda Layer"
@@ -513,6 +546,10 @@ jobs:
           | Payment Simulator Lambda | \`${PAYMENT_SIMULATOR_NAME}\` |
           | API Access Log Group | \`${API_ACCESS_LOG_GROUP_NAME}\` |
           | CloudWatch Dashboard | \`${OBSERVABILITY_DASHBOARD_NAME}\` |
+          | Observability Suite Enabled | \`${OBSERVABILITY_SUITE_ENABLED}\` |
+          | Observability Suite Public IP | \`${OBSERVABILITY_SUITE_PUBLIC_IP}\` |
+          | Grafana URL | \`${OBSERVABILITY_SUITE_GRAFANA_URL}\` |
+          | Grafana Dashboard URL | \`${OBSERVABILITY_SUITE_GRAFANA_DASHBOARD_URL}\` |
 
           ## Effective Observability Configuration
 
@@ -532,6 +569,8 @@ jobs:
           | Effective OTLP base endpoint | \`${EFFECTIVE_OTLP_BASE_ENDPOINT}\` |
           | Effective OTLP traces endpoint | \`${EFFECTIVE_OTLP_TRACES_ENDPOINT}\` |
           | Effective OTLP metrics endpoint | \`${EFFECTIVE_OTLP_METRICS_ENDPOINT}\` |
+          | Alloy OTLP HTTP endpoint | \`${OBSERVABILITY_SUITE_OTLP_HTTP_ENDPOINT}\` |
+          | Alloy OTLP gRPC endpoint | \`${OBSERVABILITY_SUITE_OTLP_GRPC_ENDPOINT}\` |
           | Metrics namespace | \`${METRICS_NAMESPACE}\` |
           | OTel metric export interval ms | \`${OTEL_METRIC_EXPORT_INTERVAL_MS}\` |
 
@@ -582,6 +621,7 @@ jobs:
           - If \`OTEL_EXPORT_STRATEGY=direct\`, Lambdas export OTLP directly to the final backend.
           - If \`OTEL_EXPORT_STRATEGY=collector\`, Lambdas export OTLP to a Collector first.
           - If \`OTEL_MODE=adot_layer\` and all direct OTLP inputs are empty, Terraform infers CloudWatch OTLP traces and metrics endpoints for the selected region.
+          - If \`Observability Suite Enabled=true\` and no collector trace or metric endpoint is provided, Terraform infers the Alloy OTLP HTTP endpoint for both traces and metrics.
           - If \`Application Signals execution role policy=true\`, Terraform attached \`CloudWatchLambdaApplicationSignalsExecutionRolePolicy\` to all Lambda execution roles.
           - If \`effective_otlp_authentication_mode=sigv4\`, the selected OTLP backend requires SigV4 and this repo relies on the AWS-managed ADOT Lambda layer to satisfy that requirement at runtime.
           - If all effective OTLP endpoints are empty, OTLP export is inactive and CloudWatch Logs / EMF / X-Ray remain the effective active path.
@@ -600,6 +640,10 @@ jobs:
             "payment_simulator_name": "${PAYMENT_SIMULATOR_NAME}",
             "api_access_log_group_name": "${API_ACCESS_LOG_GROUP_NAME}",
             "observability_dashboard_name": "${OBSERVABILITY_DASHBOARD_NAME}",
+            "observability_suite_enabled": "${OBSERVABILITY_SUITE_ENABLED}",
+            "observability_suite_public_ip": "${OBSERVABILITY_SUITE_PUBLIC_IP}",
+            "observability_suite_grafana_url": "${OBSERVABILITY_SUITE_GRAFANA_URL}",
+            "observability_suite_grafana_dashboard_url": "${OBSERVABILITY_SUITE_GRAFANA_DASHBOARD_URL}",
             "otel_mode": "${OTEL_MODE}",
             "otel_export_strategy": "${OTEL_EXPORT_STRATEGY}",
             "otel_initialization_owner": "${OTEL_INITIALIZATION}",
@@ -614,6 +658,8 @@ jobs:
             "effective_otlp_base_endpoint": "${EFFECTIVE_OTLP_BASE_ENDPOINT}",
             "effective_otlp_traces_endpoint": "${EFFECTIVE_OTLP_TRACES_ENDPOINT}",
             "effective_otlp_metrics_endpoint": "${EFFECTIVE_OTLP_METRICS_ENDPOINT}",
+            "observability_suite_otlp_http_endpoint": "${OBSERVABILITY_SUITE_OTLP_HTTP_ENDPOINT}",
+            "observability_suite_otlp_grpc_endpoint": "${OBSERVABILITY_SUITE_OTLP_GRPC_ENDPOINT}",
             "metrics_namespace": "${METRICS_NAMESPACE}",
             "otel_metric_export_interval_ms": "${OTEL_METRIC_EXPORT_INTERVAL_MS}",
             "collected_business_metrics": [

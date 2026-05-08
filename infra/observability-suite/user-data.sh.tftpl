@@ -1,0 +1,49 @@
+#!/bin/bash
+set -euo pipefail
+
+dnf install -y docker docker-compose-plugin
+systemctl enable --now docker
+usermod -aG docker ec2-user || true
+
+mkdir -p /opt/observability-suite/alloy
+mkdir -p /opt/observability-suite/prometheus
+mkdir -p /opt/observability-suite/loki
+mkdir -p /opt/observability-suite/tempo
+mkdir -p /opt/observability-suite/grafana/provisioning/datasources
+mkdir -p /opt/observability-suite/grafana/provisioning/dashboards
+mkdir -p /opt/observability-suite/grafana/dashboards
+
+cat <<'EOF' | base64 -d > /opt/observability-suite/docker-compose.yml
+${compose_b64}
+EOF
+
+cat <<'EOF' | base64 -d > /opt/observability-suite/alloy/config.alloy
+${alloy_config_b64}
+EOF
+
+cat <<'EOF' | base64 -d > /opt/observability-suite/prometheus/prometheus.yml
+${prometheus_config_b64}
+EOF
+
+cat <<'EOF' | base64 -d > /opt/observability-suite/loki/config.yml
+${loki_config_b64}
+EOF
+
+cat <<'EOF' | base64 -d > /opt/observability-suite/tempo/config.yml
+${tempo_config_b64}
+EOF
+
+cat <<'EOF' | base64 -d > /opt/observability-suite/grafana/provisioning/datasources/datasources.yml
+${grafana_datasources_b64}
+EOF
+
+cat <<'EOF' | base64 -d > /opt/observability-suite/grafana/provisioning/dashboards/provider.yml
+${grafana_dashboard_provider_b64}
+EOF
+
+cat <<'EOF' | base64 -d > /opt/observability-suite/grafana/dashboards/workshop-order-processing.json
+${grafana_dashboard_b64}
+EOF
+
+docker compose -f /opt/observability-suite/docker-compose.yml pull
+docker compose -f /opt/observability-suite/docker-compose.yml up -d

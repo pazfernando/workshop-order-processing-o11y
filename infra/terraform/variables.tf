@@ -19,7 +19,7 @@ variable "resource_prefix" {
 variable "payment_failure_mode" {
   description = "Failure behavior for the payment simulator Lambda."
   type        = string
-  default     = "none"
+  default     = "random_fail"
 
   validation {
     condition = contains([
@@ -154,4 +154,34 @@ variable "payment_latency_alarm_threshold_ms" {
   description = "Threshold in milliseconds for high average payment simulation latency."
   type        = number
   default     = 3000
+}
+
+variable "create_observability_suite" {
+  description = "Whether to provision the EC2-based observability suite with Grafana, Alloy, Prometheus, and Loki."
+  type        = bool
+  default     = false
+}
+
+variable "observability_suite_instance_type" {
+  description = "EC2 instance type used for the observability suite."
+  type        = string
+  default     = "t3.small"
+}
+
+variable "observability_suite_root_volume_size_gb" {
+  description = "Root volume size in GiB for the observability suite EC2 instance."
+  type        = number
+  default     = 20
+}
+
+variable "observability_suite_grafana_allowed_cidrs" {
+  description = "CIDR ranges allowed to access Grafana on port 3000."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
+variable "observability_suite_otlp_allowed_cidrs" {
+  description = "CIDR ranges allowed to send OTLP traffic to Alloy on ports 4317 and 4318."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
 }

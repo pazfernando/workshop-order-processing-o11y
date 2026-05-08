@@ -37,6 +37,11 @@ jobs:
       OBSERVABILITY_EMF_COMPATIBILITY_MODE: ${{ vars.OBSERVABILITY_EMF_COMPATIBILITY_MODE != '' && vars.OBSERVABILITY_EMF_COMPATIBILITY_MODE || 'true' }}
       CREATE_OBSERVABILITY_DASHBOARD: ${{ vars.CREATE_OBSERVABILITY_DASHBOARD != '' && vars.CREATE_OBSERVABILITY_DASHBOARD || 'true' }}
       CREATE_OBSERVABILITY_ALARMS: ${{ vars.CREATE_OBSERVABILITY_ALARMS != '' && vars.CREATE_OBSERVABILITY_ALARMS || 'true' }}
+      CREATE_OBSERVABILITY_SUITE: ${{ vars.CREATE_OBSERVABILITY_SUITE != '' && vars.CREATE_OBSERVABILITY_SUITE || 'false' }}
+      OBSERVABILITY_SUITE_INSTANCE_TYPE: ${{ vars.OBSERVABILITY_SUITE_INSTANCE_TYPE != '' && vars.OBSERVABILITY_SUITE_INSTANCE_TYPE || 't3.small' }}
+      OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB: ${{ vars.OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB != '' && vars.OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB || '20' }}
+      OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS: ${{ vars.OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS != '' && vars.OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS || '["0.0.0.0/0"]' }}
+      OBSERVABILITY_SUITE_OTLP_ALLOWED_CIDRS: ${{ vars.OBSERVABILITY_SUITE_OTLP_ALLOWED_CIDRS != '' && vars.OBSERVABILITY_SUITE_OTLP_ALLOWED_CIDRS || '["0.0.0.0/0"]' }}
       API_5XX_ALARM_THRESHOLD: ${{ vars.API_5XX_ALARM_THRESHOLD != '' && vars.API_5XX_ALARM_THRESHOLD || '1' }}
       ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD: ${{ vars.ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD != '' && vars.ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD || '1' }}
       PAYMENT_LATENCY_ALARM_THRESHOLD_MS: ${{ vars.PAYMENT_LATENCY_ALARM_THRESHOLD_MS != '' && vars.PAYMENT_LATENCY_ALARM_THRESHOLD_MS || '3000' }}
@@ -154,6 +159,11 @@ jobs:
             -var="observability_emf_compatibility_mode=${OBSERVABILITY_EMF_COMPATIBILITY_MODE}" \
             -var="create_observability_dashboard=${CREATE_OBSERVABILITY_DASHBOARD}" \
             -var="create_observability_alarms=${CREATE_OBSERVABILITY_ALARMS}" \
+            -var="create_observability_suite=${CREATE_OBSERVABILITY_SUITE}" \
+            -var="observability_suite_instance_type=${OBSERVABILITY_SUITE_INSTANCE_TYPE}" \
+            -var="observability_suite_root_volume_size_gb=${OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB}" \
+            -var="observability_suite_grafana_allowed_cidrs=${OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS}" \
+            -var="observability_suite_otlp_allowed_cidrs=${OBSERVABILITY_SUITE_OTLP_ALLOWED_CIDRS}" \
             -var="api_5xx_alarm_threshold=${API_5XX_ALARM_THRESHOLD}" \
             -var="order_processor_error_alarm_threshold=${ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD}" \
             -var="payment_latency_alarm_threshold_ms=${PAYMENT_LATENCY_ALARM_THRESHOLD_MS}"

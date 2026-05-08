@@ -1,0 +1,71 @@
+services:
+  alloy:
+    image: ${alloy_image}
+    command:
+      - run
+      - /etc/alloy/config.alloy
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - /opt/observability-suite/alloy/config.alloy:/etc/alloy/config.alloy:ro
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+
+  prometheus:
+    image: ${prometheus_image}
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-remote-write-receiver
+      - --web.listen-address=0.0.0.0:9090
+    volumes:
+      - /opt/observability-suite/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    restart: unless-stopped
+
+  loki:
+    image: ${loki_image}
+    command:
+      - -config.file=/etc/loki/config.yml
+    volumes:
+      - /opt/observability-suite/loki/config.yml:/etc/loki/config.yml:ro
+      - loki-data:/loki
+    restart: unless-stopped
+
+  tempo:
+    image: ${tempo_image}
+    command:
+      - -config.file=/etc/tempo/config.yml
+    volumes:
+      - /opt/observability-suite/tempo/config.yml:/etc/tempo/config.yml:ro
+      - tempo-data:/var/tempo
+    restart: unless-stopped
+
+  grafana:
+    image: ${grafana_image}
+    environment:
+      GF_SECURITY_ADMIN_USER: ${grafana_admin_user}
+      GF_SECURITY_ADMIN_PASSWORD: ${grafana_admin_password}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - /opt/observability-suite/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - /opt/observability-suite/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - /opt/observability-suite/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+
+volumes:
+  grafana-data:
+  prometheus-data:
+  loki-data:
+  tempo-data:

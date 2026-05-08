@@ -50,5 +50,6 @@ Este repositorio contiene un caso de negocio base para talleres técnicos sobre 
 - Evitar que el código de negocio dependa directamente de CloudWatch EMF, X-Ray o vendors específicos; encapsular esas decisiones en la capa compartida de observabilidad.
 - Si en una iteración futura se incorpora OpenTelemetry Collector, usarlo como punto de consolidación y enrutamiento para exportar a CloudWatch y a vendors externos sin reescribir la instrumentación de la aplicación.
 - Si se cambia el modelo de despliegue o autenticación AWS, actualizar también `README.md`, `infra/terraform/*`, `scripts/prepare-lambda-package.sh` y los workflows de GitHub Actions.
+- Si se cambia la suite de observabilidad en EC2, actualizar también `README.md`, `docs/observability-deployment.md`, `docs/deployment-profile.md` y el artifact generado por `.github/workflows/deploy.yml`.
 - Si se agregan nuevos componentes AWS, documentar claramente el motivo y el impacto en el taller.
 - `README.md` es la referencia operativa principal del repositorio; no mantener documentos transitorios paralelos.
