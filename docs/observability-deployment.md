@@ -55,7 +55,7 @@ Alcance actual:
 - métricas OTLP: soportadas y visualizadas en Grafana vía Prometheus
 - trazas OTLP: soportadas y explorables en Grafana vía Tempo
 - logs OTLP: collector y Loki listos para usarse cuando la app los emita
-- red: intenta usar primero una subnet pública de la región y, si no existe, cae a la primera subnet disponible
+- red: intenta usar primero una subnet pública de la región; si no existe, define `OBSERVABILITY_SUITE_SUBNET_ID`
 
 ## Recomendación
 
@@ -148,6 +148,7 @@ Mueve el bootstrap fuera del código y centraliza la operación.
 | Variable | Valores permitidos | Obligatoria | Recomendado |
 | :--- | :--- | :--- | :--- |
 | `OBSERVABILITY_SUITE_INSTANCE_TYPE` | tipo EC2 válido | No | `t3.small` |
+| `OBSERVABILITY_SUITE_SUBNET_ID` | subnet ID o vacío | No | vacío |
 | `OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB` | entero positivo | No | `20` |
 | `OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS` | lista JSON de CIDRs | No | `["0.0.0.0/0"]` |
 | `OBSERVABILITY_SUITE_OTLP_ALLOWED_CIDRS` | lista JSON de CIDRs | No | `["0.0.0.0/0"]` |
