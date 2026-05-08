@@ -54,7 +54,7 @@ Aunque el código ya está preparado con abstracciones `otel-first`, con el perf
 | `STACK_NAME` | `observability-business-case` |
 | `RESOURCE_PREFIX` | `aws-dev` en GitHub Actions |
 | `AWS_REGION` | `us-east-1` |
-| `PAYMENT_FAILURE_MODE` | `none` |
+| `PAYMENT_FAILURE_MODE` | `random_fail` |
 | `LOG_RETENTION_IN_DAYS` | `7` |
 | `METRICS_NAMESPACE` | `Workshop/OrderProcessing` |
 | `OTEL_MODE` | `code` |
@@ -102,7 +102,7 @@ Resultado:
 - el Layer ADOT inicializa OTel antes del handler
 - Terraform infiere `https://xray.<region>.amazonaws.com/v1/traces`
 - Terraform infiere `https://monitoring.<region>.amazonaws.com/v1/metrics`
-- la ruta directa depende de autenticación `SigV4`
+- el backend OTLP directo efectivo requiere autenticación `SigV4`
 - el wrapper efectivo esperado para este repo Node.js es `/opt/otel-handler`
 - Terraform adjunta `CloudWatchLambdaApplicationSignalsExecutionRolePolicy` a los execution roles
 

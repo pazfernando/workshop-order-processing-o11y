@@ -73,6 +73,31 @@ flowchart LR
 - Dashboard de CloudWatch con métricas técnicas y de negocio.
 - Alarmas básicas para 5xx del API, errores del procesador y latencia del simulador de pago.
 
+### Métricas de negocio recolectadas
+
+| Métrica | Servicio | Qué representa |
+| :--- | :--- | :--- |
+| `OrdersCreated` | `order-api` | Órdenes creadas exitosamente |
+| `CreateOrderLatencyMs` | `order-api` | Latencia de `POST /orders` |
+| `CreateOrderErrors` | `order-api` | Errores al crear órdenes |
+| `OrdersRead` | `order-api` | Lecturas exitosas de órdenes |
+| `OrdersNotFound` | `order-api` | Consultas de órdenes inexistentes |
+| `GetOrderErrors` | `order-api` | Errores en `GET /orders/{orderId}` |
+| `OrdersProcessed` | `order-processor` | Eventos procesados con resultado final |
+| `PaymentInvocationLatencyMs` | `order-processor` | Latencia de la invocación al simulador de pago |
+| `OrderProcessorIgnoredEvents` | `order-processor` | Eventos ignorados por payload inválido |
+| `OrderProcessorDuplicateEvents` | `order-processor` | Eventos duplicados o ya procesados |
+| `OrderProcessorErrors` | `order-processor` | Errores del procesador de órdenes |
+| `PaymentsSimulated` | `payment-simulator` | Pagos simulados con estado final |
+| `PaymentSimulationLatencyMs` | `payment-simulator` | Latencia del simulador de pago |
+| `PaymentSimulationErrors` | `payment-simulator` | Errores del simulador de pago |
+
+Notas:
+
+- estas métricas se registran desde `src/shared/observability.js`
+- con `OBSERVABILITY_EMF_COMPATIBILITY_MODE=true`, salen además por EMF hacia CloudWatch Metrics
+- si OTLP está activo, los mismos nombres se exportan también por OpenTelemetry
+
 Nota: esta solución usa API Gateway HTTP API. Esa variante no soporta tracing activo con X-Ray como sí ocurre con REST API, así que el API se observa mediante access logs; el tracing queda habilitado en las Lambdas.
 
 ## Estructura
@@ -122,6 +147,34 @@ Resumen operativo corto:
 - Si usas `direct` con `code`, no apuntes a CloudWatch OTLP directo con este repo: los exporters en código no firman SigV4
 - Si usas `adot_layer`, Terraform adjunta `CloudWatchLambdaApplicationSignalsExecutionRolePolicy` a los execution roles de las Lambdas
 
+### Inputs manuales de `deploy.yml`
+
+| Input | Default | Cuándo cambiarlo |
+| :--- | :--- | :--- |
+| `payment_failure_mode` | `random_fail` | Para simular fallas o latencia en el workshop |
+| `log_retention_in_days` | `7` | Si necesitas mayor o menor retención de logs |
+| `metrics_namespace` | `Workshop/OrderProcessing` | Si quieres aislar métricas por ambiente o equipo |
+| `otel_mode` | `code` | Usa `adot_layer` para delegar bootstrap al layer ADOT |
+| `adot_lambda_layer_arn` | vacío | Solo si quieres forzar un ARN distinto al inferido |
+| `otel_export_strategy` | `direct` | Usa `collector` cuando ya exista un Collector real |
+| `otel_exporter_otlp_endpoint` | vacío | Para backends OTLP no-AWS con endpoint base único |
+| `otel_exporter_otlp_traces_endpoint` | vacío | Para override directo de trazas |
+| `otel_exporter_otlp_metrics_endpoint` | vacío | Para override directo de métricas |
+| `otel_collector_endpoint` | vacío | Requerido con `collector` si no usas overrides por señal |
+| `otel_collector_traces_endpoint` | vacío | Override de trazas hacia Collector |
+| `otel_collector_metrics_endpoint` | vacío | Override de métricas hacia Collector |
+| `observability_emf_compatibility_mode` | `true` | Si quieres apagar EMF y quedarte solo con OTLP |
+| `create_observability_dashboard` | `true` | Si no quieres crear dashboard CloudWatch |
+| `create_observability_alarms` | `true` | Si no quieres crear alarmas CloudWatch |
+
+Estos son los inputs manuales expuestos por `workflow_dispatch`. Los thresholds de alarmas, `OTEL_METRIC_EXPORT_INTERVAL_MS`, `TF_STATE_BUCKET` y `TF_STATE_KEY` siguen entrando como variables del environment o del repositorio.
+
+Reglas importantes:
+
+- `adot_layer + direct` con endpoints directos vacíos infiere `X-Ray` y `CloudWatch Metrics` por OTLP para la región actual
+- ese camino requiere `SigV4`, usa `AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-handler` y adjunta `CloudWatchLambdaApplicationSignalsExecutionRolePolicy`
+- `code + direct` sirve para OTLP genérico, no para CloudWatch OTLP directo
+
 ## Despliegue local
 
 ### 1. Configurar credenciales AWS
@@ -146,7 +199,7 @@ export AWS_REGION="us-east-1"
 export STACK_NAME="observability-business-case"
 export RESOURCE_PREFIX="aws-dev"
 export AWS_REGION="us-east-1"
-export PAYMENT_FAILURE_MODE="none"
+export PAYMENT_FAILURE_MODE="random_fail"
 export LOG_RETENTION_IN_DAYS="7"
 export METRICS_NAMESPACE="Workshop/OrderProcessing"
 export OTEL_MODE="code"
@@ -302,14 +355,6 @@ Variables:
 - `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` opcional
 - `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` opcional
 - `OTEL_METRIC_EXPORT_INTERVAL_MS` opcional
-
-Notas para `direct`:
-
-- con `OTEL_MODE=adot_layer`, si dejas vacíos `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` y `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`, Terraform infiere `https://xray.<region>.amazonaws.com/v1/traces` y `https://monitoring.<region>.amazonaws.com/v1/metrics`
-- esos endpoints de CloudWatch requieren autenticación `SigV4`
-- con el layer Node.js administrado por AWS usado en este repo, el wrapper efectivo es `/opt/otel-handler`
-- cuando `OTEL_MODE=adot_layer`, Terraform adjunta `CloudWatchLambdaApplicationSignalsExecutionRolePolicy` a cada Lambda
-- este repo solo considera soportado ese camino con `OTEL_MODE=adot_layer`
 - `OBSERVABILITY_EMF_COMPATIBILITY_MODE` opcional
 - `CREATE_OBSERVABILITY_DASHBOARD` opcional
 - `CREATE_OBSERVABILITY_ALARMS` opcional
@@ -317,6 +362,14 @@ Notas para `direct`:
 - `ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD` opcional
 - `PAYMENT_LATENCY_ALARM_THRESHOLD_MS` opcional
 - `TF_STATE_KEY` opcional
+
+Reglas para `direct`:
+
+- con `OTEL_MODE=adot_layer`, dejar vacíos los endpoints directos hace que Terraform infiera `https://xray.<region>.amazonaws.com/v1/traces` y `https://monitoring.<region>.amazonaws.com/v1/metrics`
+- esos endpoints de CloudWatch requieren `SigV4`
+- en este repo Node.js, ese camino usa `/opt/otel-handler`
+- Terraform adjunta `CloudWatchLambdaApplicationSignalsExecutionRolePolicy` cuando `OTEL_MODE=adot_layer`
+- `code + direct` no debe apuntar a CloudWatch OTLP directo
 
 ### Backend remoto de Terraform en GitHub Actions
 
