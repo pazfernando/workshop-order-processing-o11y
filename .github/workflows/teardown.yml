@@ -3,10 +3,15 @@ name: Teardown
 on:
   workflow_dispatch:
     inputs:
+      resource_prefix:
+        description: Environment/resource prefix used in names and state derivation
+        required: false
+        default: aws-dev-1
+        type: string
       confirm_stack:
-        description: Type the exact stack name to confirm teardown
+        description: Type the exact effective stack name to confirm teardown, including resource prefix when used
         required: true
-        default: observability-business-case
+        default: aws-dev-1-observability-business-case
         type: string
 
 jobs:
@@ -20,7 +25,7 @@ jobs:
       ENVIRONMENT_NAME: aws-dev
       AWS_REGION: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'us-east-1' }}
       STACK_NAME: ${{ vars.STACK_NAME != '' && vars.STACK_NAME || 'observability-business-case' }}
-      RESOURCE_PREFIX: ${{ vars.RESOURCE_PREFIX != '' && vars.RESOURCE_PREFIX || 'aws-dev' }}
+      RESOURCE_PREFIX: ${{ inputs.resource_prefix != '' && inputs.resource_prefix || vars.RESOURCE_PREFIX || 'aws-dev-1' }}
       PAYMENT_FAILURE_MODE: ${{ vars.PAYMENT_FAILURE_MODE != '' && vars.PAYMENT_FAILURE_MODE || 'random_fail' }}
       LOG_RETENTION_IN_DAYS: ${{ vars.LOG_RETENTION_IN_DAYS != '' && vars.LOG_RETENTION_IN_DAYS || '7' }}
       METRICS_NAMESPACE: ${{ vars.METRICS_NAMESPACE != '' && vars.METRICS_NAMESPACE || 'Workshop/OrderProcessing' }}
@@ -52,8 +57,13 @@ jobs:
     steps:
       - name: Validate confirmation
         run: |
-          if [ "${{ inputs.confirm_stack }}" != "$STACK_NAME" ]; then
-            echo "Confirmation mismatch. Expected '$STACK_NAME'." >&2
+          EFFECTIVE_STACK_NAME="$STACK_NAME"
+          if [ -n "$RESOURCE_PREFIX" ]; then
+            EFFECTIVE_STACK_NAME="${RESOURCE_PREFIX}-${STACK_NAME}"
+          fi
+
+          if [ "${{ inputs.confirm_stack }}" != "$EFFECTIVE_STACK_NAME" ]; then
+            echo "Confirmation mismatch. Expected '$EFFECTIVE_STACK_NAME'." >&2
             exit 1
           fi
 
@@ -118,7 +128,7 @@ jobs:
             BUCKET_NAME="${PROJECT_SLUG}-${BUCKET_SUFFIX}"
           fi
 
-          STATE_KEY="${TF_STATE_KEY:-${ENVIRONMENT_NAME}/${STACK_NAME}.tfstate}"
+          STATE_KEY="${TF_STATE_KEY:-${ENVIRONMENT_NAME}/${EFFECTIVE_STACK_NAME}.tfstate}"
 
           if ! aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
             echo "Terraform state bucket '$BUCKET_NAME' does not exist or is not accessible." >&2

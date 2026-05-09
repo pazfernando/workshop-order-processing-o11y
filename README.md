@@ -153,6 +153,7 @@ Resumen operativo corto:
 
 | Input | Default | Cuándo cambiarlo |
 | :--- | :--- | :--- |
+| `resource_prefix` | `aws-dev-1` | Si quieres coexistir con varios despliegues del mismo stack en la misma cuenta/región |
 | `payment_failure_mode` | `random_fail` | Para simular fallas o latencia en el workshop |
 | `log_retention_in_days` | `7` | Si necesitas mayor o menor retención de logs |
 | `metrics_namespace` | `Workshop/OrderProcessing` | Si quieres aislar métricas por ambiente o equipo |
@@ -170,7 +171,7 @@ Resumen operativo corto:
 | `create_observability_alarms` | `true` | Si no quieres crear alarmas CloudWatch |
 | `observability_suite_instance_type` | `t3.small` | Si necesitas más CPU o memoria para la suite |
 
-Estos son los inputs manuales expuestos por `workflow_dispatch`. Los thresholds de alarmas, `OTEL_METRIC_EXPORT_INTERVAL_MS`, `TF_STATE_BUCKET`, `TF_STATE_KEY` y `OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD` siguen entrando desde GitHub environment/repository settings. Para el password de Grafana, usa `Secrets` como primera opción.
+Estos son los inputs manuales expuestos por `workflow_dispatch`. Los thresholds de alarmas, `OTEL_METRIC_EXPORT_INTERVAL_MS`, `TF_STATE_BUCKET`, `TF_STATE_KEY` y `OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD` siguen entrando desde GitHub environment/repository settings. Para el password de Grafana, usa `Secrets` como primera opción. `resource_prefix` también existe en `teardown.yml` para que puedas destruir exactamente el despliegue que elegiste crear.
 
 Reglas importantes:
 
@@ -204,7 +205,7 @@ export AWS_REGION="us-east-1"
 
 ```bash
 export STACK_NAME="observability-business-case"
-export RESOURCE_PREFIX="aws-dev"
+export RESOURCE_PREFIX="aws-dev-1"
 export AWS_REGION="us-east-1"
 export PAYMENT_FAILURE_MODE="random_fail"
 export LOG_RETENTION_IN_DAYS="7"
@@ -235,7 +236,7 @@ Si quieres mantener estado remoto también localmente:
 
 ```bash
 export TF_STATE_BUCKET="<tu-bucket-terraform-state>"
-export TF_STATE_KEY="observability-business-case.tfstate"
+export TF_STATE_KEY="aws-dev/aws-dev-1-observability-business-case.tfstate"
 ```
 
 ### 3. Instalar dependencias y empaquetar Lambda
@@ -252,7 +253,7 @@ Si usas estado remoto:
 ```bash
 terraform -chdir=infra/terraform init -reconfigure \
   -backend-config="bucket=${TF_STATE_BUCKET}" \
-  -backend-config="key=${TF_STATE_KEY:-${STACK_NAME}.tfstate}" \
+  -backend-config="key=${TF_STATE_KEY:-aws-dev/${RESOURCE_PREFIX}-${STACK_NAME}.tfstate}" \
   -backend-config="region=${AWS_REGION}"
 ```
 
@@ -406,13 +407,13 @@ Si `TF_STATE_BUCKET` no está definido, el workflow crea uno automáticamente en
 
 Si ese nombre excede el límite de 63 caracteres de S3, el workflow lo recorta de forma determinística y agrega un hash corto para mantener unicidad.
 
-Luego usa una key por environment:
+Luego usa una key por environment y prefijo efectivo:
 
-- `${environment}/${STACK_NAME}.tfstate`
+- `${environment}/${RESOURCE_PREFIX}-${STACK_NAME}.tfstate`
 
 En este repositorio, para el environment `aws-dev`, la key por defecto queda:
 
-- `aws-dev/observability-business-case.tfstate`
+- `aws-dev/aws-dev-1-observability-business-case.tfstate`
 
 Y los recursos nombrados quedan con este patrón:
 

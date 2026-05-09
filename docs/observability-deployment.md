@@ -105,7 +105,7 @@ Mueve el bootstrap fuera del código y centraliza la operación.
 | Variable | Valores permitidos | Obligatoria | Recomendado |
 | :--- | :--- | :--- | :--- |
 | `STACK_NAME` | string | Sí | `observability-business-case` |
-| `RESOURCE_PREFIX` | string | Sí | `aws-dev` |
+| `RESOURCE_PREFIX` | string | Sí | `aws-dev-1` |
 | `AWS_REGION` | región AWS válida | Sí | `us-east-1` |
 | `PAYMENT_FAILURE_MODE` | `none`, `always_fail`, `random_fail`, `slow_response`, `random_reject` | Sí | `random_fail` |
 | `LOG_RETENTION_IN_DAYS` | entero positivo | No | `7` |
@@ -142,7 +142,7 @@ Mueve el bootstrap fuera del código y centraliza la operación.
 | Variable | Valores permitidos | Obligatoria | Recomendado |
 | :--- | :--- | :--- | :--- |
 | `TF_STATE_BUCKET` | bucket S3 o vacío | No | vacío si el workflow lo crea |
-| `TF_STATE_KEY` | key S3 o vacío | No | `${environment}/${STACK_NAME}.tfstate` |
+| `TF_STATE_KEY` | key S3 o vacío | No | `${environment}/${RESOURCE_PREFIX}-${STACK_NAME}.tfstate` |
 
 ### Suite EC2
 
@@ -268,4 +268,4 @@ Reglas de validación de observabilidad:
 - si `OTEL_EXPORT_STRATEGY=direct` y `OTEL_MODE=code`, no uses endpoints OTLP de CloudWatch porque este repo no firma SigV4 en el bootstrap en código
 - si `OTEL_EXPORT_STRATEGY=collector`, puedes dejar vacíos `OTEL_COLLECTOR_TRACES_ENDPOINT` y `OTEL_COLLECTOR_METRICS_ENDPOINT`; Terraform los infiere hacia Alloy
 
-`teardown.yml` reutiliza las mismas variables para destruir el stack.
+`teardown.yml` reutiliza las mismas variables para destruir el stack y ahora confirma contra el nombre efectivo, incluyendo `RESOURCE_PREFIX` cuando aplique.

@@ -6,6 +6,11 @@ on:
       - main
   workflow_dispatch:
     inputs:
+      resource_prefix:
+        description: Environment/resource prefix used in names and state derivation
+        required: false
+        default: aws-dev-1
+        type: string
       payment_failure_mode:
         description: Payment simulator failure mode
         required: false
@@ -119,7 +124,7 @@ jobs:
       ENVIRONMENT_NAME: aws-dev
       AWS_REGION: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'us-east-1' }}
       STACK_NAME: ${{ vars.STACK_NAME != '' && vars.STACK_NAME || 'observability-business-case' }}
-      RESOURCE_PREFIX: ${{ vars.RESOURCE_PREFIX != '' && vars.RESOURCE_PREFIX || 'aws-dev' }}
+      RESOURCE_PREFIX: ${{ inputs.resource_prefix != '' && inputs.resource_prefix || vars.RESOURCE_PREFIX || 'aws-dev-1' }}
       PAYMENT_FAILURE_MODE: ${{ inputs.payment_failure_mode != '' && inputs.payment_failure_mode || vars.PAYMENT_FAILURE_MODE || 'random_fail' }}
       LOG_RETENTION_IN_DAYS: ${{ inputs.log_retention_in_days != '' && inputs.log_retention_in_days || vars.LOG_RETENTION_IN_DAYS || '7' }}
       METRICS_NAMESPACE: ${{ inputs.metrics_namespace != '' && inputs.metrics_namespace || vars.METRICS_NAMESPACE || 'Workshop/OrderProcessing' }}
@@ -210,7 +215,7 @@ jobs:
             BUCKET_NAME="${PROJECT_SLUG}-${BUCKET_SUFFIX}"
           fi
 
-          STATE_KEY="${TF_STATE_KEY:-${ENVIRONMENT_NAME}/${STACK_NAME}.tfstate}"
+          STATE_KEY="${TF_STATE_KEY:-${ENVIRONMENT_NAME}/${EFFECTIVE_STACK_NAME}.tfstate}"
 
           if aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
             echo "Using existing Terraform state bucket: $BUCKET_NAME"
