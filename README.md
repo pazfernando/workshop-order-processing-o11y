@@ -358,7 +358,7 @@ terraform -chdir=infra/terraform destroy \
 El repositorio incluye tres workflows:
 
 - [ci.yml](/Users/pazfernando/Documents/projects/windsurf/workshop-order-processing/.github/workflows/ci.yml): valida sintaxis JavaScript, empaqueta Lambda y ejecuta `terraform fmt` y `terraform validate`
-- [deploy.yml](/Users/pazfernando/Documents/projects/windsurf/workshop-order-processing/.github/workflows/deploy.yml): despliega automáticamente a AWS cuando hay push a `main`, y permite ejecución manual con `workflow_dispatch`
+- [deploy.yml](/Users/pazfernando/Documents/projects/windsurf/workshop-order-processing/.github/workflows/deploy.yml): despliega automáticamente a AWS solo cuando hay push a `main`; ramas como `dev` usan `workflow_dispatch`
 - [teardown.yml](/Users/pazfernando/Documents/projects/windsurf/workshop-order-processing/.github/workflows/teardown.yml): destruye manualmente la infraestructura con `terraform destroy` usando el mismo backend remoto
 
 ### Secrets y variables requeridos en GitHub
