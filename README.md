@@ -150,6 +150,15 @@ Resumen operativo corto:
 - Si usas `collector`, en este repo debes mantener `OTEL_MODE=code` para que las métricas custom del negocio lleguen a Grafana/Alloy/Prometheus
 - Si usas `adot_layer`, Terraform adjunta `CloudWatchLambdaApplicationSignalsExecutionRolePolicy` a los execution roles de las Lambdas
 
+### Matriz de soporte por combinación
+
+| Combinación | Trazas | Métricas custom del negocio | Uso recomendado en este repo |
+| :--- | :--- | :--- | :--- |
+| `code + direct` | Sí | Sí, hacia OTLP genérico no-AWS | Backends OTLP directos no-AWS |
+| `code + collector` | Sí | Sí, hacia Alloy/Prometheus/Grafana | Recomendado para la suite EC2 |
+| `adot_layer + direct` | Sí | Sí, para CloudWatch OTLP directo | Recomendado para CloudWatch directo |
+| `adot_layer + collector` | Sí, potencialmente | No soportado en este repo | Bloqueado por deploy/Terraform |
+
 ### Inputs manuales de `deploy.yml`
 
 | Input | Default | Cuándo cambiarlo |

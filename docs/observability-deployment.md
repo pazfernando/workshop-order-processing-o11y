@@ -40,6 +40,15 @@ Notas de este repo:
 | `adot_layer + direct` | ADOT arranca OTel y exporta directo | Habilita CloudWatch directo | Requiere SigV4 |
 | `adot_layer + collector` | ADOT arranca OTel y exporta a Collector | No usar en este repo | El deploy lo bloquea para evitar un falso positivo de métricas |
 
+### Señales soportadas por combinación
+
+| Combinación | Trazas | Métricas custom del negocio | Estado en este repo |
+| :--- | :--- | :--- | :--- |
+| `code + direct` | Sí | Sí, hacia OTLP genérico no-AWS | Soportado |
+| `code + collector` | Sí | Sí, hacia Alloy/Prometheus/Grafana | Soportado |
+| `adot_layer + direct` | Sí | Sí, para CloudWatch OTLP directo | Soportado |
+| `adot_layer + collector` | Sí, potencialmente | No garantizado para las métricas custom de este repo | No soportado y bloqueado |
+
 ## Suite EC2 para `collector`
 
 Cuando `OTEL_EXPORT_STRATEGY=collector`, este repo usa una sola EC2 para:
