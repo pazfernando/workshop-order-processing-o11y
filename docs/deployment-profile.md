@@ -123,7 +123,7 @@ Resultado:
 - con `OTEL_COLLECTOR_ENDPOINT` vacío, Terraform provisiona la suite EC2 e infiere Alloy para trazas y métricas
 - si defines `OTEL_COLLECTOR_ENDPOINT`, apuntas a un Collector externo en vez de usar el Alloy inferido
 
-### Caso 3: activar ADOT Layer + Collector
+### Caso 3: intentar ADOT Layer + Collector
 
 Debes definir:
 
@@ -136,9 +136,9 @@ OTEL_COLLECTOR_ENDPOINT=
 
 Resultado:
 
-- la app deja de ser responsable del bootstrap del SDK
-- el Layer ADOT inicializa OTel antes del handler
-- las Lambdas exportan OTLP al Collector
+- el deploy falla de forma explícita
+- en este repo, esa combinación no se considera soportada para métricas custom del negocio
+- usa `code + collector` para Grafana/Alloy/Prometheus o `adot_layer + direct` para CloudWatch OTLP directo
 
 ## Recomendación operativa actual
 
@@ -160,20 +160,19 @@ Interpretación:
 - OTLP directo a CloudWatch no se infiere en este perfil porque el bootstrap sigue en código
 - la suite EC2 de Grafana/Alloy/Prometheus/Tempo/Loki no forma parte del perfil por defecto; aparece cuando cambias a `OTEL_EXPORT_STRATEGY=collector`
 
-### Para avanzar a una operación más madura
+### Para avanzar a una operación más madura con Grafana
 
 La siguiente transición recomendada es:
 
 ```text
-OTEL_MODE=adot_layer
+OTEL_MODE=code
 OTEL_EXPORT_STRATEGY=collector
-ADOT_LAMBDA_LAYER_ARN=...
 OTEL_COLLECTOR_ENDPOINT=
 ```
 
 Interpretación:
 
-- el bootstrap queda fuera del código
+- el bootstrap sigue en código porque ahí viven las métricas custom del negocio de este repo
 - el Collector se vuelve el punto central de enrutamiento
-- CloudWatch y terceros pasan a ser destinos del Collector, no contratos de la app
+- Grafana/Alloy/Prometheus reciben las métricas OTLP del workshop
 - si no das un endpoint externo, Terraform usa la suite EC2 del workshop
