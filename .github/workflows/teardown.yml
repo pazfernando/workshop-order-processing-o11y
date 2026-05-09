@@ -1,7 +1,5 @@
 name: Teardown
-run-name: Teardown (${{
-  inputs.resource_prefix || vars.RESOURCE_PREFIX || 'aws-dev-1'
-}})
+run-name: ${{ format('Teardown ({0})', inputs.resource_prefix || vars.RESOURCE_PREFIX || 'aws-dev-1') }}
 
 on:
   workflow_dispatch:
