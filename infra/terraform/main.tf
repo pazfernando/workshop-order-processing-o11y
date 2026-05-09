@@ -212,7 +212,7 @@ locals {
     grafana_image               = "grafana/grafana:latest"
     alloy_image                 = "grafana/alloy:latest"
     loki_image                  = "grafana/loki:latest"
-    tempo_image                 = "grafana/tempo:latest"
+    tempo_image                 = "grafana/tempo:2.10.4"
     prometheus_image            = "prom/prometheus:latest"
   }) : ""
   observability_suite_user_data = local.observability_suite_enabled ? templatefile("${path.module}/../observability-suite/user-data.sh.tftpl", {

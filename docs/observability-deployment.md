@@ -56,7 +56,7 @@ Alcance actual:
 - trazas OTLP: soportadas y explorables en Grafana vía Tempo
 - logs OTLP: collector y Loki listos para usarse cuando la app los emita
 - red: intenta usar primero una subnet pública de la región y, si no existe, cae a la primera subnet disponible
-- acceso a Grafana: usa `admin` y toma la contraseña de `OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD` si está definida; si no, Terraform genera una aleatoria
+- acceso a Grafana: usa `admin` y toma la contraseña de `OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD` desde GitHub `Secrets` si existe; si no, cae a `Variables` y luego a una aleatoria de Terraform
 
 ## Recomendación
 
