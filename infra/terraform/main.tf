@@ -207,13 +207,13 @@ locals {
     deployment_environment   = local.deployment_environment
   }) : ""
   observability_suite_compose = local.observability_suite_enabled ? templatefile("${path.module}/../observability-suite/docker-compose.yml.tftpl", {
-    grafana_admin_user     = "admin"
-    grafana_admin_password = local.effective_grafana_admin_password
-    grafana_image          = "grafana/grafana:latest"
-    alloy_image            = "grafana/alloy:latest"
-    loki_image             = "grafana/loki:latest"
-    tempo_image            = "grafana/tempo:latest"
-    prometheus_image       = "prom/prometheus:latest"
+    grafana_admin_user_json     = jsonencode("admin")
+    grafana_admin_password_json = jsonencode(local.effective_grafana_admin_password)
+    grafana_image               = "grafana/grafana:latest"
+    alloy_image                 = "grafana/alloy:latest"
+    loki_image                  = "grafana/loki:latest"
+    tempo_image                 = "grafana/tempo:latest"
+    prometheus_image            = "prom/prometheus:latest"
   }) : ""
   observability_suite_user_data = local.observability_suite_enabled ? templatefile("${path.module}/../observability-suite/user-data.sh.tftpl", {
     compose_b64                    = base64encode(local.observability_suite_compose)
@@ -224,7 +224,6 @@ locals {
     grafana_datasources_b64        = base64encode(local.grafana_datasources_yaml)
     grafana_dashboard_provider_b64 = base64encode(local.grafana_dashboard_provider_yaml)
     grafana_dashboard_b64          = base64encode(local.grafana_dashboard_json)
-    grafana_admin_password_b64     = base64encode(local.effective_grafana_admin_password)
   }) : null
   otel_common_env = {
     OBSERVABILITY_OTEL_ENABLED           = var.otel_mode == "code" ? "true" : "false"

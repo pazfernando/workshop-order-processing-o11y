@@ -138,6 +138,7 @@ jobs:
       CREATE_OBSERVABILITY_ALARMS: ${{ inputs.create_observability_alarms != '' && inputs.create_observability_alarms || vars.CREATE_OBSERVABILITY_ALARMS || 'true' }}
       OBSERVABILITY_SUITE_INSTANCE_TYPE: ${{ inputs.observability_suite_instance_type != '' && inputs.observability_suite_instance_type || vars.OBSERVABILITY_SUITE_INSTANCE_TYPE || 't3.small' }}
       OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD: ${{ vars.OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD != '' && vars.OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD || '' }}
+      TF_VAR_observability_suite_grafana_admin_password: ${{ vars.OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD != '' && vars.OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD || '' }}
       OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB: ${{ vars.OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB != '' && vars.OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB || '20' }}
       API_5XX_ALARM_THRESHOLD: ${{ vars.API_5XX_ALARM_THRESHOLD != '' && vars.API_5XX_ALARM_THRESHOLD || '1' }}
       ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD: ${{ vars.ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD != '' && vars.ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD || '1' }}
@@ -457,7 +458,6 @@ jobs:
             -var="create_observability_dashboard=${CREATE_OBSERVABILITY_DASHBOARD}" \
             -var="create_observability_alarms=${CREATE_OBSERVABILITY_ALARMS}" \
             -var="observability_suite_instance_type=${OBSERVABILITY_SUITE_INSTANCE_TYPE}" \
-            -var="observability_suite_grafana_admin_password=${OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD}" \
             -var="observability_suite_root_volume_size_gb=${OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB}" \
             -var="observability_suite_grafana_allowed_cidrs=${OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS}" \
             -var="observability_suite_otlp_allowed_cidrs=${OBSERVABILITY_SUITE_OTLP_ALLOWED_CIDRS}" \
