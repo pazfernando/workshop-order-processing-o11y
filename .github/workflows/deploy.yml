@@ -33,7 +33,7 @@ on:
         default: Workshop/OrderProcessing
         type: string
       otel_mode:
-        description: "Who initializes OpenTelemetry in Lambda: app code or ADOT layer"
+        description: "Who initializes OpenTelemetry in Lambda: app code or ADOT layer. For collector in this repo, use code"
         required: false
         default: code
         type: choice
@@ -292,6 +292,12 @@ jobs:
             echo "Collector strategy selected. Terraform will provision the EC2 observability suite and infer the Alloy OTLP HTTP endpoint for traces and metrics unless explicit collector endpoints are provided."
           fi
 
+          if [ "$OTEL_EXPORT_STRATEGY" = "collector" ] && [ "$OTEL_MODE" = "adot_layer" ]; then
+            echo "In this repo, otel_mode=adot_layer with otel_export_strategy=collector is not supported for custom business metrics." >&2
+            echo "Use otel_mode=code with otel_export_strategy=collector for Grafana/Alloy/Prometheus metrics, or keep adot_layer for direct CloudWatch OTLP." >&2
+            exit 1
+          fi
+
           if [ "$OTEL_EXPORT_STRATEGY" = "direct" ] && [ -z "$OTEL_EXPORTER_OTLP_ENDPOINT" ] && [ -z "$OTEL_EXPORTER_OTLP_TRACES_ENDPOINT" ] && [ -z "$OTEL_EXPORTER_OTLP_METRICS_ENDPOINT" ]; then
             if [ "$OTEL_MODE" = "adot_layer" ]; then
               echo "Direct OTLP endpoints left empty with adot_layer. Terraform will infer CloudWatch OTLP traces and metrics endpoints for region ${AWS_REGION}."
@@ -518,6 +524,20 @@ jobs:
             EMF_STATUS="Inactive"
           fi
 
+          if [ "$OTEL_EXPORT_STRATEGY" = "collector" ] && [ "$OTEL_MODE" = "code" ]; then
+            BUSINESS_OTLP_METRICS_READINESS="Supported via in-process OTel SDK"
+            COMBINATION_GUIDANCE="Recommended for Grafana/Alloy/Prometheus business metrics in this repo"
+          elif [ "$OTEL_EXPORT_STRATEGY" = "direct" ] && [ "$OTEL_MODE" = "adot_layer" ]; then
+            BUSINESS_OTLP_METRICS_READINESS="Supported for direct CloudWatch OTLP"
+            COMBINATION_GUIDANCE="Recommended for CloudWatch direct OTLP in this repo"
+          elif [ "$OTEL_EXPORT_STRATEGY" = "direct" ] && [ "$OTEL_MODE" = "code" ]; then
+            BUSINESS_OTLP_METRICS_READINESS="Supported for non-AWS OTLP backends"
+            COMBINATION_GUIDANCE="Recommended for generic direct OTLP backends"
+          else
+            BUSINESS_OTLP_METRICS_READINESS="Unsupported in this repo"
+            COMBINATION_GUIDANCE="Do not use this combination for workshop business metrics"
+          fi
+
           cat > build/artifacts/deployment-profile.md <<EOF
           # Deployment Profile
 
@@ -565,6 +585,8 @@ jobs:
           | Alloy OTLP gRPC endpoint | \`${OBSERVABILITY_SUITE_OTLP_GRPC_ENDPOINT}\` |
           | Metrics namespace | \`${METRICS_NAMESPACE}\` |
           | OTel metric export interval ms | \`${OTEL_METRIC_EXPORT_INTERVAL_MS}\` |
+          | Business OTLP metrics readiness | ${BUSINESS_OTLP_METRICS_READINESS} |
+          | Combination guidance | ${COMBINATION_GUIDANCE} |
 
           ## Effective Signals
 
@@ -576,6 +598,7 @@ jobs:
           | Lambda traces | X-Ray |
           | OTLP traces | ${OTLP_EXPORT_STATUS_LABEL} |
           | OTLP metrics | ${OTLP_EXPORT_STATUS_LABEL} |
+          | Business OTLP metrics path | ${BUSINESS_OTLP_METRICS_READINESS} |
 
           ## Collected Business Metrics
 
@@ -614,6 +637,8 @@ jobs:
           - If \`OTEL_EXPORT_STRATEGY=collector\`, Lambdas export OTLP to Alloy first and Terraform provisions the EC2 suite for the workshop.
           - If \`OTEL_MODE=adot_layer\` and all direct OTLP inputs are empty, Terraform infers CloudWatch OTLP traces and metrics endpoints for the selected region.
           - If \`OTEL_EXPORT_STRATEGY=collector\` and no collector endpoint override is provided, Terraform infers the Alloy OTLP HTTP endpoint for both traces and metrics.
+          - In this repo, custom business metrics exported to a Collector are supported when \`OTEL_MODE=code\`.
+          - In this repo, \`OTEL_MODE=adot_layer\` is reserved for direct CloudWatch OTLP and should not be combined with \`OTEL_EXPORT_STRATEGY=collector\` for workshop business metrics.
           - If \`Application Signals execution role policy=true\`, Terraform attached \`CloudWatchLambdaApplicationSignalsExecutionRolePolicy\` to all Lambda execution roles.
           - If \`effective_otlp_authentication_mode=sigv4\`, the selected OTLP backend requires SigV4 and this repo relies on the AWS-managed ADOT Lambda layer to satisfy that requirement at runtime.
           - If all effective OTLP endpoints are empty, OTLP export is inactive and CloudWatch Logs / EMF / X-Ray remain the effective active path.
@@ -654,6 +679,8 @@ jobs:
             "observability_suite_otlp_grpc_endpoint": "${OBSERVABILITY_SUITE_OTLP_GRPC_ENDPOINT}",
             "metrics_namespace": "${METRICS_NAMESPACE}",
             "otel_metric_export_interval_ms": "${OTEL_METRIC_EXPORT_INTERVAL_MS}",
+            "business_otlp_metrics_readiness": "${BUSINESS_OTLP_METRICS_READINESS}",
+            "combination_guidance": "${COMBINATION_GUIDANCE}",
             "collected_business_metrics": [
               "OrdersCreated",
               "CreateOrderLatencyMs",

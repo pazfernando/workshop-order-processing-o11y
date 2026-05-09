@@ -14,7 +14,7 @@ Hay dos ejes:
 | Variable | Valores | Qué significa | Cuándo usarlo |
 | :--- | :--- | :--- | :--- |
 | `OTEL_MODE` | `code` | La propia Lambda inicializa el SDK OTel | Default del repo |
-| `OTEL_MODE` | `adot_layer` | Un Lambda Layer de ADOT inicializa OTel antes del handler | Útil para CloudWatch directo o bootstrap fuera del código |
+| `OTEL_MODE` | `adot_layer` | Un Lambda Layer de ADOT inicializa OTel antes del handler | Útil para CloudWatch directo |
 | `ADOT_LAMBDA_LAYER_ARN` | ARN o vacío | ARN del layer ADOT | Obligatorio si `OTEL_MODE=adot_layer` |
 
 Notas de este repo:
@@ -36,9 +36,9 @@ Notas de este repo:
 | Modo | Qué hace | Ventaja principal | Costo / tradeoff |
 | :--- | :--- | :--- | :--- |
 | `code + direct` | App arranca OTel y exporta directo | Más simple | No sirve para CloudWatch OTLP directo |
-| `code + collector` | App arranca OTel y exporta a Collector | Buen equilibrio | Requiere Collector |
+| `code + collector` | App arranca OTel y exporta a Collector | Camino soportado para métricas custom del negocio en Grafana | Requiere Collector |
 | `adot_layer + direct` | ADOT arranca OTel y exporta directo | Habilita CloudWatch directo | Requiere SigV4 |
-| `adot_layer + collector` | ADOT arranca OTel y exporta a Collector | Más desacople | Mayor complejidad |
+| `adot_layer + collector` | ADOT arranca OTel y exporta a Collector | No usar en este repo | El deploy lo bloquea para evitar un falso positivo de métricas |
 
 ## Suite EC2 para `collector`
 
@@ -85,18 +85,17 @@ OBSERVABILITY_EMF_COMPATIBILITY_MODE=true
 
 Desacopla la instrumentación del backend final.
 
-### Operación más madura
+### CloudWatch directo
 
 Usa:
 
 ```text
 OTEL_MODE=adot_layer
 ADOT_LAMBDA_LAYER_ARN=arn:aws:lambda:...
-OTEL_EXPORT_STRATEGY=collector
-OTEL_COLLECTOR_ENDPOINT=
+OTEL_EXPORT_STRATEGY=direct
 ```
 
-Mueve el bootstrap fuera del código y centraliza la operación.
+Usa el layer ADOT para CloudWatch OTLP directo cuando esa sea la meta operativa.
 
 ## Variables relevantes
 
@@ -191,7 +190,13 @@ export OTEL_COLLECTOR_ENDPOINT="http://collector.internal:4318"
 export OBSERVABILITY_EMF_COMPATIBILITY_MODE="true"
 ```
 
-### Ejemplo 4: deploy con ADOT Layer + Collector
+Resultado esperado:
+
+- métricas custom del negocio llegan a Alloy y Prometheus
+- Grafana puede visualizarlas desde el datasource `Prometheus`
+- trazas OTLP siguen llegando a Alloy y Tempo
+
+### Ejemplo 4: combinación no soportada en este repo
 
 ```bash
 export OTEL_MODE="adot_layer"
@@ -199,6 +204,12 @@ export ADOT_LAMBDA_LAYER_ARN="arn:aws:lambda:<region>:<account-or-publisher>:lay
 export OTEL_EXPORT_STRATEGY="collector"
 export OTEL_COLLECTOR_ENDPOINT="http://collector.internal:4318"
 ```
+
+Resultado esperado:
+
+- el deploy falla de forma explícita
+- la razón es que, en este repo, `adot_layer + collector` no garantiza que las métricas custom del negocio lleguen al Collector
+- usa `code + collector` para Grafana/Alloy/Prometheus o `adot_layer + direct` para CloudWatch OTLP directo
 
 ### Ejemplo 5: deploy con ADOT Layer + CloudWatch directo
 

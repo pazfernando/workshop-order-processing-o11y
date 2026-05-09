@@ -605,6 +605,11 @@ resource "aws_lambda_function" "create_order" {
 
   lifecycle {
     precondition {
+      condition     = !(var.otel_export_strategy == "collector" && var.otel_mode == "adot_layer")
+      error_message = "In this repo, otel_export_strategy='collector' requires otel_mode='code' for custom business metrics. Use adot_layer only with direct CloudWatch OTLP."
+    }
+
+    precondition {
       condition     = var.otel_mode != "adot_layer" || local.effective_adot_lambda_layer_arn != ""
       error_message = "Unable to resolve an ADOT Lambda layer ARN for the selected region. Set adot_lambda_layer_arn explicitly or use a supported region."
     }
