@@ -120,6 +120,7 @@ Resultado:
 
 - la app sigue inicializando OTel desde código
 - las Lambdas exportan OTLP al Collector
+- cada handler hace `forceFlush` antes de terminar la invocación para no dejar métricas OTLP cortas en memoria
 - con `OTEL_COLLECTOR_ENDPOINT` vacío, Terraform provisiona la suite EC2 e infiere Alloy para trazas y métricas
 - si defines `OTEL_COLLECTOR_ENDPOINT`, apuntas a un Collector externo en vez de usar el Alloy inferido
 
@@ -175,4 +176,5 @@ Interpretación:
 - el bootstrap sigue en código porque ahí viven las métricas custom del negocio de este repo
 - el Collector se vuelve el punto central de enrutamiento
 - Grafana/Alloy/Prometheus reciben las métricas OTLP del workshop
+- ese camino depende también de `forceFlush` por invocación para que Lambda no se quede esperando el export interval del SDK
 - si no das un endpoint externo, Terraform usa la suite EC2 del workshop

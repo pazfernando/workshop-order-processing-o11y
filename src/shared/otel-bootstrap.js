@@ -1,4 +1,5 @@
 const startedSymbol = Symbol.for("workshop-order-processing.otel.started");
+const sdkSymbol = Symbol.for("workshop-order-processing.otel.sdk");
 
 bootstrapOpenTelemetry();
 
@@ -66,6 +67,8 @@ function bootstrapOpenTelemetry() {
         awsSdkInstrumentation
       ),
     });
+
+    global[sdkSymbol] = sdk;
 
     Promise.resolve(sdk.start()).catch((error) => {
       logDiagnostic(api, "Failed to start OpenTelemetry SDK", error);
@@ -167,3 +170,20 @@ function safeRequire(moduleName) {
     throw error;
   }
 }
+
+function forceFlushOpenTelemetry() {
+  const sdk = global[sdkSymbol];
+
+  if (!sdk || typeof sdk.forceFlush !== "function") {
+    return Promise.resolve();
+  }
+
+  return Promise.resolve(sdk.forceFlush()).catch((error) => {
+    const api = safeRequire("@opentelemetry/api");
+    logDiagnostic(api, "Failed to force flush OpenTelemetry SDK", error);
+  });
+}
+
+module.exports = {
+  forceFlushOpenTelemetry,
+};

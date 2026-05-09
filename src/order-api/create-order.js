@@ -13,6 +13,7 @@ const {
   createHttpContext,
   durationMs,
   emitMetric,
+  forceFlushOpenTelemetry,
   recordException,
   setSpanAttributes,
 } = require("../shared/observability");
@@ -133,6 +134,8 @@ exports.handler = async (event, context) => {
     return response.created({ orderId, status: "PENDING" }, responseHeaders);
   } catch (error) {
     return handleError(error, log, startTime, responseHeaders);
+  } finally {
+    await forceFlushOpenTelemetry();
   }
 };
 

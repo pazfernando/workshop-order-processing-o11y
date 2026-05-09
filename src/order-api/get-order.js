@@ -9,6 +9,7 @@ const {
   createHttpContext,
   durationMs,
   emitMetric,
+  forceFlushOpenTelemetry,
   recordException,
   setSpanAttributes,
 } = require("../shared/observability");
@@ -120,5 +121,7 @@ exports.handler = async (event, context) => {
     });
 
     return response.internalError({ message: "Internal server error" }, responseHeaders);
+  } finally {
+    await forceFlushOpenTelemetry();
   }
 };

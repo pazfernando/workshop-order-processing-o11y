@@ -526,8 +526,8 @@ jobs:
           fi
 
           if [ "$OTEL_EXPORT_STRATEGY" = "collector" ] && [ "$OTEL_MODE" = "code" ]; then
-            BUSINESS_OTLP_METRICS_READINESS="Supported via in-process OTel SDK"
-            COMBINATION_GUIDANCE="Recommended for Grafana/Alloy/Prometheus business metrics in this repo"
+            BUSINESS_OTLP_METRICS_READINESS="Supported via in-process OTel SDK with per-invocation forceFlush"
+            COMBINATION_GUIDANCE="Recommended for Grafana/Alloy/Prometheus business metrics in this repo; Lambda handlers forceFlush metrics before returning"
           elif [ "$OTEL_EXPORT_STRATEGY" = "direct" ] && [ "$OTEL_MODE" = "adot_layer" ]; then
             BUSINESS_OTLP_METRICS_READINESS="Supported for direct CloudWatch OTLP"
             COMBINATION_GUIDANCE="Recommended for CloudWatch direct OTLP in this repo"
@@ -638,7 +638,7 @@ jobs:
           - If \`OTEL_EXPORT_STRATEGY=collector\`, Lambdas export OTLP to Alloy first and Terraform provisions the EC2 suite for the workshop.
           - If \`OTEL_MODE=adot_layer\` and all direct OTLP inputs are empty, Terraform infers CloudWatch OTLP traces and metrics endpoints for the selected region.
           - If \`OTEL_EXPORT_STRATEGY=collector\` and no collector endpoint override is provided, Terraform infers the Alloy OTLP HTTP endpoint for both traces and metrics.
-          - In this repo, custom business metrics exported to a Collector are supported when \`OTEL_MODE=code\`.
+          - In this repo, custom business metrics exported to a Collector are supported when \`OTEL_MODE=code\`, and the Lambda handlers forceFlush metrics before returning.
           - In this repo, \`OTEL_MODE=adot_layer\` is reserved for direct CloudWatch OTLP and should not be combined with \`OTEL_EXPORT_STRATEGY=collector\` for workshop business metrics.
           - If \`Application Signals execution role policy=true\`, Terraform attached \`CloudWatchLambdaApplicationSignalsExecutionRolePolicy\` to all Lambda execution roles.
           - If \`effective_otlp_authentication_mode=sigv4\`, the selected OTLP backend requires SigV4 and this repo relies on the AWS-managed ADOT Lambda layer to satisfy that requirement at runtime.

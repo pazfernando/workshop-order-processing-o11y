@@ -6,6 +6,7 @@ const {
   createInvocationContext,
   durationMs,
   emitMetric,
+  forceFlushOpenTelemetry,
   recordException,
   setSpanAttributes,
 } = require("../shared/observability");
@@ -79,6 +80,8 @@ exports.handler = async (event, context) => {
     });
 
     throw error;
+  } finally {
+    await forceFlushOpenTelemetry();
   }
 };
 

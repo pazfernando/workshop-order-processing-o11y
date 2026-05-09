@@ -148,6 +148,7 @@ Resumen operativo corto:
 - Si usas `direct` con `adot_layer` y no defines overrides, Terraform infiere CloudWatch OTLP por señal en la región actual
 - Si usas `direct` con `code`, no apuntes a CloudWatch OTLP directo con este repo: los exporters en código no firman SigV4
 - Si usas `collector`, en este repo debes mantener `OTEL_MODE=code` para que las métricas custom del negocio lleguen a Grafana/Alloy/Prometheus
+- En `OTEL_MODE=code` + `collector`, este repo hace `forceFlush` de métricas al final de cada invocación Lambda para no depender solo del intervalo periódico del SDK
 - Si usas `adot_layer`, Terraform adjunta `CloudWatchLambdaApplicationSignalsExecutionRolePolicy` a los execution roles de las Lambdas
 
 ### Matriz de soporte por combinación
@@ -155,7 +156,7 @@ Resumen operativo corto:
 | Combinación | Trazas | Métricas custom del negocio | Uso recomendado en este repo |
 | :--- | :--- | :--- | :--- |
 | `code + direct` | Sí | Sí, hacia OTLP genérico no-AWS | Backends OTLP directos no-AWS |
-| `code + collector` | Sí | Sí, hacia Alloy/Prometheus/Grafana | Recomendado para la suite EC2 |
+| `code + collector` | Sí | Sí, hacia Alloy/Prometheus/Grafana | Recomendado para la suite EC2; hace `forceFlush` por invocación |
 | `adot_layer + direct` | Sí | Sí, para CloudWatch OTLP directo | Recomendado para CloudWatch directo |
 | `adot_layer + collector` | Sí, potencialmente | No soportado en este repo | Bloqueado por deploy/Terraform |
 
@@ -189,6 +190,7 @@ Reglas importantes:
 - ese camino requiere `SigV4`, usa `AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-handler` y adjunta `CloudWatchLambdaApplicationSignalsExecutionRolePolicy`
 - `code + direct` sirve para OTLP genérico, no para CloudWatch OTLP directo
 - `code + collector` es la combinación soportada en este repo para métricas OTLP del negocio hacia Grafana/Alloy/Prometheus
+- ese camino depende del bootstrap en código y de `forceFlush` por invocación para que Lambda no deje métricas en memoria sin exportar
 - `adot_layer + collector` no está soportado en este repo para métricas custom del negocio y el deploy ahora lo bloquea
 - `OTEL_EXPORT_STRATEGY=collector` provisiona y usa la suite EC2 automáticamente
 - la suite en EC2 soporta hoy métricas OTLP hacia Prometheus y trazas OTLP hacia Tempo; Loki queda listo para logs OTLP futuros

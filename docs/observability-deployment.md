@@ -45,7 +45,7 @@ Notas de este repo:
 | Combinación | Trazas | Métricas custom del negocio | Estado en este repo |
 | :--- | :--- | :--- | :--- |
 | `code + direct` | Sí | Sí, hacia OTLP genérico no-AWS | Soportado |
-| `code + collector` | Sí | Sí, hacia Alloy/Prometheus/Grafana | Soportado |
+| `code + collector` | Sí | Sí, hacia Alloy/Prometheus/Grafana | Soportado; este repo hace `forceFlush` por invocación |
 | `adot_layer + direct` | Sí | Sí, para CloudWatch OTLP directo | Soportado |
 | `adot_layer + collector` | Sí, potencialmente | No garantizado para las métricas custom de este repo | No soportado y bloqueado |
 
@@ -62,6 +62,7 @@ Cuando `OTEL_EXPORT_STRATEGY=collector`, este repo usa una sola EC2 para:
 Alcance actual:
 
 - métricas OTLP: soportadas y visualizadas en Grafana vía Prometheus
+- en Lambda, las métricas custom del negocio se fuerzan a exportar al final de cada invocación para no depender solo del timer del SDK
 - trazas OTLP: soportadas y explorables en Grafana vía Tempo
 - logs OTLP: collector y Loki listos para usarse cuando la app los emita
 - red: intenta usar primero una subnet pública de la región y, si no existe, cae a la primera subnet disponible
@@ -202,6 +203,7 @@ export OBSERVABILITY_EMF_COMPATIBILITY_MODE="true"
 Resultado esperado:
 
 - métricas custom del negocio llegan a Alloy y Prometheus
+- cada handler hace `forceFlush` antes de terminar la invocación, para que Lambda no deje métricas OTLP sin exportar
 - Grafana puede visualizarlas desde el datasource `Prometheus`
 - trazas OTLP siguen llegando a Alloy y Tempo
 
