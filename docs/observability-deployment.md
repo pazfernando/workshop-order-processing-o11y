@@ -167,6 +167,7 @@ Usa el layer ADOT para CloudWatch OTLP directo cuando esa sea la meta operativa.
 | `OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB` | entero positivo | No | `20` |
 | `OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS` | lista JSON de CIDRs | No | `["0.0.0.0/0"]` |
 | `OBSERVABILITY_SUITE_OTLP_ALLOWED_CIDRS` | lista JSON de CIDRs | No | `["0.0.0.0/0"]` |
+| `OBSERVABILITY_SUITE_SSH_ALLOWED_CIDRS` | lista JSON de CIDRs | No | `["0.0.0.0/0"]` |
 
 ## Ejemplos
 
@@ -212,6 +213,19 @@ Resultado esperado:
 - si `OTEL_COLLECTOR_ENDPOINT` es un endpoint base OTLP/HTTP, el SDK deriva `.../v1/traces` y `.../v1/metrics` desde esa base
 - Grafana puede visualizarlas desde el datasource `Prometheus`
 - trazas OTLP siguen llegando a Alloy y Tempo
+
+## Prueba local
+
+Sin desplegar, puedes validar el camino de instrumentación así:
+
+```bash
+npm run test:otel-local
+```
+
+La prueba comprueba:
+
+- modo `code`: envío OTLP HTTP a `/v1/metrics`
+- modo `adot_layer`: log explícito de `bootstrap skipped`
 
 ### Ejemplo 4: combinación no soportada en este repo
 

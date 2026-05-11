@@ -186,3 +186,9 @@ variable "observability_suite_otlp_allowed_cidrs" {
   type        = list(string)
   default     = ["0.0.0.0/0"]
 }
+
+variable "observability_suite_ssh_allowed_cidrs" {
+  description = "CIDR ranges allowed to access the observability suite over SSH on port 22."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}

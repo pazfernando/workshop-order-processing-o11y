@@ -213,22 +213,28 @@ function safeRequire(moduleName) {
 }
 
 function forceFlushOpenTelemetry() {
-  const sdk = global[sdkSymbol];
+  const api = safeRequire("@opentelemetry/api");
+  const meterProvider = api?.metrics?.getMeterProvider?.();
 
-  if (!sdk || typeof sdk.forceFlush !== "function") {
+  if (!meterProvider || typeof meterProvider.forceFlush !== "function") {
+    logger.warn("OpenTelemetry meter provider force flush unavailable", {
+      component: "otel-bootstrap",
+      serviceName: process.env.OTEL_SERVICE_NAME || process.env.SERVICE_NAME || "workshop-order-processing",
+      meterProviderType: meterProvider?.constructor?.name,
+    });
     return Promise.resolve();
   }
 
-  return Promise.resolve(sdk.forceFlush())
+  return Promise.resolve(meterProvider.forceFlush())
     .then(() => {
-      logger.info("OpenTelemetry SDK force flush completed", {
+      logger.info("OpenTelemetry meter provider force flush completed", {
         component: "otel-bootstrap",
         serviceName: process.env.OTEL_SERVICE_NAME || process.env.SERVICE_NAME || "workshop-order-processing",
+        meterProviderType: meterProvider?.constructor?.name,
       });
     })
     .catch((error) => {
-      const api = safeRequire("@opentelemetry/api");
-      logDiagnostic(api, "Failed to force flush OpenTelemetry SDK", error);
+      logDiagnostic(api, "Failed to force flush OpenTelemetry meter provider", error);
     });
 }
 

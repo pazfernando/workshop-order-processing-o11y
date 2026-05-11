@@ -182,6 +182,7 @@ Resumen operativo corto:
 | `create_observability_dashboard` | `true` | Si no quieres crear dashboard CloudWatch |
 | `create_observability_alarms` | `true` | Si no quieres crear alarmas CloudWatch |
 | `observability_suite_instance_type` | `t3.small` | Si necesitas más CPU o memoria para la suite |
+| `observability_suite_ssh_allowed_cidrs` | `["0.0.0.0/0"]` | Si quieres acceso SSH a la EC2 de la suite; restringe la red cuando sea posible |
 
 Estos son los inputs manuales expuestos por `workflow_dispatch`. Los thresholds de alarmas, `OTEL_METRIC_EXPORT_INTERVAL_MS`, `TF_STATE_BUCKET`, `TF_STATE_KEY` y `OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD` siguen entrando desde GitHub environment/repository settings. Para el password de Grafana, usa `Secrets` como primera opción. `resource_prefix` también existe en `teardown.yml` para que puedas destruir exactamente el despliegue que elegiste crear.
 
@@ -196,6 +197,7 @@ Reglas importantes:
 - `OTEL_EXPORT_STRATEGY=collector` provisiona y usa la suite EC2 automáticamente
 - la suite en EC2 soporta hoy métricas OTLP hacia Prometheus y trazas OTLP hacia Tempo; Loki queda listo para logs OTLP futuros
 - la suite en EC2 intenta usar primero una subnet pública de la región y, si no existe, cae a la primera subnet disponible
+- el puerto `22` de la suite EC2 se controla con `OBSERVABILITY_SUITE_SSH_ALLOWED_CIDRS`; abrirlo no reemplaza SSM ni EC2 Instance Connect
 - si defines `OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD` en GitHub `Secrets`, Grafana usará esa clave fija; si no existe, el workflow cae a `Variables` y luego a una aleatoria de Terraform
 
 ## Despliegue local
@@ -242,6 +244,7 @@ export OBSERVABILITY_SUITE_INSTANCE_TYPE="t3.small"
 export OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB="20"
 export OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS='["0.0.0.0/0"]'
 export OBSERVABILITY_SUITE_OTLP_ALLOWED_CIDRS='["0.0.0.0/0"]'
+export OBSERVABILITY_SUITE_SSH_ALLOWED_CIDRS='["0.0.0.0/0"]'
 export API_5XX_ALARM_THRESHOLD="1"
 export ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD="1"
 export PAYMENT_LATENCY_ALARM_THRESHOLD_MS="3000"
@@ -260,6 +263,17 @@ export TF_STATE_KEY="aws-dev/aws-dev-1-observability-business-case.tfstate"
 npm install
 bash scripts/prepare-lambda-package.sh
 ```
+
+### 4. Probar OTel localmente
+
+```bash
+npm run test:otel-local
+```
+
+La prueba local valida dos cosas:
+
+- en modo `code`, la app emite una request OTLP HTTP a `/v1/metrics`
+- en modo `adot_layer`, el bootstrap deja trazabilidad explícita de que fue omitido por el wrapper
 
 ### 4. Inicializar Terraform
 

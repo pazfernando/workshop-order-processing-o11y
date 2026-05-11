@@ -290,6 +290,17 @@ resource "aws_vpc_security_group_ingress_rule" "observability_suite_otlp_grpc" {
   description       = "Alloy OTLP gRPC ingest"
 }
 
+resource "aws_vpc_security_group_ingress_rule" "observability_suite_ssh" {
+  for_each = local.observability_suite_enabled ? toset(var.observability_suite_ssh_allowed_cidrs) : toset([])
+
+  security_group_id = aws_security_group.observability_suite[0].id
+  cidr_ipv4         = each.value
+  from_port         = 22
+  to_port           = 22
+  ip_protocol       = "tcp"
+  description       = "SSH access"
+}
+
 resource "aws_iam_role" "observability_suite" {
   count              = local.observability_suite_enabled ? 1 : 0
   name               = "${local.observability_suite_name}-role"

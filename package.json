@@ -6,6 +6,7 @@
   "scripts": {
     "check": "node --check src/shared/errors.js && node --check src/shared/logger.js && node --check src/shared/otel-bootstrap.js && node --check src/shared/observability.js && node --check src/shared/response.js && node --check src/shared/validation.js && node --check src/order-api/create-order.js && node --check src/order-api/get-order.js && node --check src/order-processor/process-order-created.js && node --check src/payment-simulator/process-payment.js",
     "package:lambda": "bash scripts/prepare-lambda-package.sh",
+    "test:otel-local": "node scripts/test-otel-runtime.js",
     "terraform:fmt": "terraform -chdir=infra/terraform fmt -check -recursive",
     "terraform:validate": "terraform -chdir=infra/terraform init -backend=false && terraform -chdir=infra/terraform validate",
     "test:smoke": "bash scripts/create-order.sh"
