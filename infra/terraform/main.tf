@@ -1093,23 +1093,6 @@ resource "aws_cloudwatch_dashboard" "observability" {
             [var.metrics_namespace, "PaymentInvocationLatencyMs", "service", "order-processor", "operation", "process-order-created", { stat = "p99" }]
           ]
         }
-      },
-      {
-        type   = "text"
-        x      = 0
-        y      = 24
-        width  = 24
-        height = 5
-        properties = {
-          markdown = <<-EOT
-          ## Trace View
-
-          - CloudWatch trace path: open `X-Ray > Traces` and inspect Lambda services `create-order`, `get-order`, `order-processor` and `payment-simulator`.
-          - This workshop uses `API Gateway HTTP API`, so the edge itself does not emit X-Ray traces; trace continuity starts in the Lambda handlers.
-          - Use the API response header `x-trace-id` to jump into X-Ray, and use `x-correlation-id` to correlate the full flow in CloudWatch Logs across all Lambda log groups.
-          - Suggested Logs Insights filter: `fields @timestamp, service, operation, correlationId, traceId, orderId, message | filter correlationId = "demo-001" | sort @timestamp asc`
-          EOT
-        }
       }
     ]
   })
