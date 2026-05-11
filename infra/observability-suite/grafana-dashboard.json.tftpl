@@ -9,119 +9,351 @@
   "panels": [
     {
       "id": 1,
-      "type": "timeseries",
-      "title": "Orders Created vs Processed",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "type": "stat",
+      "title": "Orders Created",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(OrdersCreated_total[5m]))",
+          "expr": "sum(increase(OrdersCreated_total[$__range])) or vector(0)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Orders Read",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(OrdersRead_total[$__range])) or vector(0)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Orders Processed",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(OrdersProcessed_total[$__range])) or vector(0)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Create Order p99",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.99, sum by (le) (increase(CreateOrderLatencyMs_milliseconds_bucket[$__range]))) or vector(0)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Get Order p99",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.99, sum by (le) (increase(GetOrderLatencyMs_milliseconds_bucket[$__range]))) or vector(0)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Payment Simulation p99",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.99, sum by (le) (increase(PaymentSimulationLatencyMs_milliseconds_bucket[$__range]))) or vector(0)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Orders Created vs Processed",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(OrdersCreated_total[$__rate_interval])) or vector(0)",
           "legendFormat": "OrdersCreated"
         },
         {
           "refId": "B",
-          "expr": "sum(rate(OrdersProcessed_total[5m]))",
+          "expr": "sum(rate(OrdersProcessed_total[$__rate_interval])) or vector(0)",
           "legendFormat": "OrdersProcessed"
         }
       ]
     },
     {
-      "id": 2,
+      "id": 8,
       "type": "timeseries",
       "title": "Application Error Rates",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(CreateOrderErrors_total[5m]))",
+          "expr": "sum(rate(CreateOrderErrors_total[$__rate_interval])) or vector(0)",
           "legendFormat": "CreateOrderErrors"
         },
         {
           "refId": "B",
-          "expr": "sum(rate(GetOrderErrors_total[5m]))",
+          "expr": "sum(rate(GetOrderErrors_total[$__rate_interval])) or vector(0)",
           "legendFormat": "GetOrderErrors"
         },
         {
           "refId": "C",
-          "expr": "sum(rate(OrderProcessorErrors_total[5m]))",
+          "expr": "sum(rate(OrderProcessorErrors_total[$__rate_interval])) or vector(0)",
           "legendFormat": "OrderProcessorErrors"
         },
         {
           "refId": "D",
-          "expr": "sum(rate(PaymentSimulationErrors_total[5m]))",
+          "expr": "sum(rate(PaymentSimulationErrors_total[$__rate_interval])) or vector(0)",
           "legendFormat": "PaymentSimulationErrors"
         }
       ]
     },
     {
-      "id": 3,
+      "id": 9,
       "type": "timeseries",
       "title": "Create Order Latency",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(CreateOrderLatencyMs_milliseconds_sum[5m])) / sum(rate(CreateOrderLatencyMs_milliseconds_count[5m]))",
-          "legendFormat": "CreateOrderLatencyMs"
-        }
-      ]
-    },
-    {
-      "id": 4,
-      "type": "timeseries",
-      "title": "Payment Latencies",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(rate(PaymentSimulationLatencyMs_milliseconds_sum[5m])) / sum(rate(PaymentSimulationLatencyMs_milliseconds_count[5m]))",
-          "legendFormat": "PaymentSimulationLatencyMs"
+          "expr": "(sum(rate(CreateOrderLatencyMs_milliseconds_sum[$__rate_interval])) / sum(rate(CreateOrderLatencyMs_milliseconds_count[$__rate_interval]))) or vector(0)",
+          "legendFormat": "avg"
         },
         {
           "refId": "B",
-          "expr": "sum(rate(PaymentInvocationLatencyMs_milliseconds_sum[5m])) / sum(rate(PaymentInvocationLatencyMs_milliseconds_count[5m]))",
-          "legendFormat": "PaymentInvocationLatencyMs"
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(CreateOrderLatencyMs_milliseconds_bucket[$__rate_interval]))) or vector(0)",
+          "legendFormat": "p99"
         }
       ]
     },
     {
-      "id": 5,
+      "id": 10,
       "type": "timeseries",
-      "title": "Read Path",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "title": "Payment Latencies",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(OrdersRead_total[5m]))",
+          "expr": "(sum(rate(PaymentSimulationLatencyMs_milliseconds_sum[$__rate_interval])) / sum(rate(PaymentSimulationLatencyMs_milliseconds_count[$__rate_interval]))) or vector(0)",
+          "legendFormat": "Simulation avg"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(PaymentSimulationLatencyMs_milliseconds_bucket[$__rate_interval]))) or vector(0)",
+          "legendFormat": "Simulation p99"
+        },
+        {
+          "refId": "C",
+          "expr": "(sum(rate(PaymentInvocationLatencyMs_milliseconds_sum[$__rate_interval])) / sum(rate(PaymentInvocationLatencyMs_milliseconds_count[$__rate_interval]))) or vector(0)",
+          "legendFormat": "Invocation avg"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Read Path",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(OrdersRead_total[$__rate_interval])) or vector(0)",
           "legendFormat": "OrdersRead"
         },
         {
           "refId": "B",
-          "expr": "sum(rate(OrdersNotFound_total[5m]))",
+          "expr": "sum(rate(OrdersNotFound_total[$__rate_interval])) or vector(0)",
           "legendFormat": "OrdersNotFound"
+        },
+        {
+          "refId": "C",
+          "expr": "sum(rate(GetOrderErrors_total[$__rate_interval])) or vector(0)",
+          "legendFormat": "GetOrderErrors"
         }
       ]
     },
     {
-      "id": 6,
+      "id": 12,
       "type": "timeseries",
-      "title": "Processor Event Hygiene",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "title": "Read Latency",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(OrderProcessorIgnoredEvents_total[5m]))",
+          "expr": "(sum(rate(GetOrderLatencyMs_milliseconds_sum[$__rate_interval])) / sum(rate(GetOrderLatencyMs_milliseconds_count[$__rate_interval]))) or vector(0)",
+          "legendFormat": "avg"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(GetOrderLatencyMs_milliseconds_bucket[$__rate_interval]))) or vector(0)",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Processor Event Hygiene",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(OrderProcessorIgnoredEvents_total[$__rate_interval])) or vector(0)",
           "legendFormat": "IgnoredEvents"
         },
         {
           "refId": "B",
-          "expr": "sum(rate(OrderProcessorDuplicateEvents_total[5m]))",
+          "expr": "sum(rate(OrderProcessorDuplicateEvents_total[$__rate_interval])) or vector(0)",
           "legendFormat": "DuplicateEvents"
         }
       ]

@@ -68,7 +68,7 @@ flowchart LR
 - Base de instrumentación OpenTelemetry en código, compatible con ADOT Lambda layer y con exporters OTLP cuando se configuren.
 - Estrategia recomendada de salida OTLP: `Collector primero`, para desacoplar la instrumentación del backend final.
 - Logs JSON consistentes por servicio con contexto reutilizable.
-- Métricas EMF para creación de órdenes, lecturas, órdenes procesadas, errores y latencia del simulador de pago.
+- Métricas EMF para creación de órdenes, lecturas, órdenes procesadas, errores y latencias de creación, lectura y simulación de pago.
 - Retención explícita de CloudWatch Logs configurable desde Terraform.
 - Access logs para API Gateway HTTP API.
 - Dashboard de CloudWatch con métricas técnicas y de negocio.
@@ -84,6 +84,7 @@ flowchart LR
 | `CreateOrderErrors` | `order-api` | Errores al crear órdenes |
 | `OrdersRead` | `order-api` | Lecturas exitosas de órdenes |
 | `OrdersNotFound` | `order-api` | Consultas de órdenes inexistentes |
+| `GetOrderLatencyMs` | `order-api` | Latencia de `GET /orders/{orderId}` |
 | `GetOrderErrors` | `order-api` | Errores en `GET /orders/{orderId}` |
 | `OrdersProcessed` | `order-processor` | Eventos procesados con resultado final |
 | `PaymentInvocationLatencyMs` | `order-processor` | Latencia de la invocación al simulador de pago |
@@ -545,7 +546,7 @@ curl -X POST "${API_BASE_URL}/orders" \
   - Busca `correlationId`, `requestId` y `orderId` para seguir la ejecución completa.
 - CloudWatch Metrics:
   - Namespace por defecto: `Workshop/OrderProcessing`
-  - Métricas esperadas: `OrdersCreated`, `OrdersProcessed`, `OrderProcessorErrors`, `PaymentSimulationLatencyMs`, `CreateOrderLatencyMs`
+  - Métricas esperadas: `OrdersCreated`, `OrdersRead`, `OrdersProcessed`, `GetOrderLatencyMs`, `CreateOrderLatencyMs`, `PaymentSimulationLatencyMs`, `OrderProcessorErrors`
 - CloudWatch Dashboard:
   - Terraform crea un dashboard llamado `${RESOURCE_PREFIX}-${STACK_NAME}-observability` cuando `CREATE_OBSERVABILITY_DASHBOARD=true`.
   - Resume tráfico del API, errores, latencia, métricas Lambda y métricas de negocio.

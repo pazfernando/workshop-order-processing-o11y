@@ -833,6 +833,108 @@ resource "aws_cloudwatch_dashboard" "observability" {
         type   = "metric"
         x      = 0
         y      = 0
+        width  = 4
+        height = 6
+        properties = {
+          title                = "Orders Created"
+          view                 = "singleValue"
+          region               = var.aws_region
+          sparkline            = false
+          setPeriodToTimeRange = true
+          metrics = [
+            [var.metrics_namespace, "OrdersCreated", "service", "order-api", "operation", "create-order", { stat = "Sum" }]
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 4
+        y      = 0
+        width  = 4
+        height = 6
+        properties = {
+          title                = "Orders Read"
+          view                 = "singleValue"
+          region               = var.aws_region
+          sparkline            = false
+          setPeriodToTimeRange = true
+          metrics = [
+            [var.metrics_namespace, "OrdersRead", "service", "order-api", "operation", "get-order", { stat = "Sum" }]
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 8
+        y      = 0
+        width  = 4
+        height = 6
+        properties = {
+          title                = "Orders Processed"
+          view                 = "singleValue"
+          region               = var.aws_region
+          sparkline            = false
+          setPeriodToTimeRange = true
+          metrics = [
+            [var.metrics_namespace, "OrdersProcessed", "service", "order-processor", "operation", "process-order-created", { stat = "Sum" }]
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 12
+        y      = 0
+        width  = 4
+        height = 6
+        properties = {
+          title                = "Create Order p99"
+          view                 = "singleValue"
+          region               = var.aws_region
+          sparkline            = false
+          setPeriodToTimeRange = true
+          metrics = [
+            [var.metrics_namespace, "CreateOrderLatencyMs", "service", "order-api", "operation", "create-order", { stat = "p99" }]
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 16
+        y      = 0
+        width  = 4
+        height = 6
+        properties = {
+          title                = "Get Order p99"
+          view                 = "singleValue"
+          region               = var.aws_region
+          sparkline            = false
+          setPeriodToTimeRange = true
+          metrics = [
+            [var.metrics_namespace, "GetOrderLatencyMs", "service", "order-api", "operation", "get-order", { stat = "p99" }]
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 20
+        y      = 0
+        width  = 4
+        height = 6
+        properties = {
+          title                = "Payment Simulation p99"
+          view                 = "singleValue"
+          region               = var.aws_region
+          sparkline            = false
+          setPeriodToTimeRange = true
+          metrics = [
+            [var.metrics_namespace, "PaymentSimulationLatencyMs", "service", "payment-simulator", "operation", "process-payment", { stat = "p99" }]
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 0
+        y      = 6
         width  = 12
         height = 6
         properties = {
@@ -850,7 +952,7 @@ resource "aws_cloudwatch_dashboard" "observability" {
       {
         type   = "metric"
         x      = 12
-        y      = 0
+        y      = 6
         width  = 12
         height = 6
         properties = {
@@ -867,7 +969,7 @@ resource "aws_cloudwatch_dashboard" "observability" {
       {
         type   = "metric"
         x      = 0
-        y      = 6
+        y      = 12
         width  = 12
         height = 6
         properties = {
@@ -886,7 +988,7 @@ resource "aws_cloudwatch_dashboard" "observability" {
       {
         type   = "metric"
         x      = 12
-        y      = 6
+        y      = 12
         width  = 12
         height = 6
         properties = {
@@ -905,7 +1007,7 @@ resource "aws_cloudwatch_dashboard" "observability" {
       {
         type   = "metric"
         x      = 0
-        y      = 12
+        y      = 18
         width  = 12
         height = 6
         properties = {
@@ -915,8 +1017,9 @@ resource "aws_cloudwatch_dashboard" "observability" {
           region  = var.aws_region
           metrics = [
             [var.metrics_namespace, "OrdersCreated", "service", "order-api", "operation", "create-order", { stat = "Sum" }],
-            [var.metrics_namespace, "OrdersProcessed", "service", "order-processor", "operation", "process-order-created", { stat = "Sum" }],
             [var.metrics_namespace, "OrdersRead", "service", "order-api", "operation", "get-order", { stat = "Sum" }],
+            [var.metrics_namespace, "OrdersNotFound", "service", "order-api", "operation", "get-order", { stat = "Sum" }],
+            [var.metrics_namespace, "OrdersProcessed", "service", "order-processor", "operation", "process-order-created", { stat = "Sum" }],
             [var.metrics_namespace, "OrderProcessorErrors", "service", "order-processor", "operation", "process-order-created", { stat = "Sum" }]
           ]
         }
@@ -924,18 +1027,19 @@ resource "aws_cloudwatch_dashboard" "observability" {
       {
         type   = "metric"
         x      = 12
-        y      = 12
+        y      = 18
         width  = 12
         height = 6
         properties = {
-          title   = "Payment Metrics"
+          title   = "Business Latency p99"
           view    = "timeSeries"
           stacked = false
           region  = var.aws_region
           metrics = [
-            [var.metrics_namespace, "PaymentSimulationLatencyMs", "service", "payment-simulator", "operation", "process-payment", { stat = "Average", label = "SimulatorLatencyMs" }],
-            [var.metrics_namespace, "PaymentInvocationLatencyMs", "service", "order-processor", "operation", "process-order-created", { stat = "Average", label = "InvocationLatencyMs" }],
-            [var.metrics_namespace, "PaymentSimulationErrors", "service", "payment-simulator", "operation", "process-payment", { stat = "Sum", label = "SimulationErrors" }]
+            [var.metrics_namespace, "CreateOrderLatencyMs", "service", "order-api", "operation", "create-order", { stat = "p99", label = "CreateOrderLatencyP99Ms" }],
+            [var.metrics_namespace, "GetOrderLatencyMs", "service", "order-api", "operation", "get-order", { stat = "p99", label = "GetOrderLatencyP99Ms" }],
+            [var.metrics_namespace, "PaymentSimulationLatencyMs", "service", "payment-simulator", "operation", "process-payment", { stat = "p99", label = "PaymentSimulationLatencyP99Ms" }],
+            [var.metrics_namespace, "PaymentInvocationLatencyMs", "service", "order-processor", "operation", "process-order-created", { stat = "p99", label = "PaymentInvocationLatencyP99Ms" }]
           ]
         }
       }

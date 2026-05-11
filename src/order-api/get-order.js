@@ -45,6 +45,9 @@ exports.handler = async (event, context) => {
         reason: "missing-order-id",
       },
     });
+    emitGetOrderLatencyMetric(startTime, {
+      result: "VALIDATION_ERROR",
+    });
     return response.badRequest({ message: "orderId is required" }, responseHeaders);
   }
 
@@ -57,7 +60,9 @@ exports.handler = async (event, context) => {
     );
 
     if (!result.Item) {
-      log.warn("Order not found", { orderId, latencyMs: durationMs(startTime) });
+      const latencyMs = durationMs(startTime);
+
+      log.warn("Order not found", { orderId, latencyMs });
       emitMetric("OrdersNotFound", 1, {
         service: "order-api",
         operation: "get-order",
@@ -67,6 +72,10 @@ exports.handler = async (event, context) => {
         properties: {
           orderId,
         },
+      });
+      emitGetOrderLatencyMetric(startTime, {
+        orderId,
+        result: "NOT_FOUND",
       });
       addSpanEvent("order.lookup.not_found", {
         "app.order_id": orderId,
@@ -91,6 +100,11 @@ exports.handler = async (event, context) => {
         orderId,
         status: result.Item.status,
       },
+    });
+    emitGetOrderLatencyMetric(startTime, {
+      orderId,
+      result: "FOUND",
+      status: result.Item.status,
     });
     addSpanEvent("order.retrieved", {
       "app.order_id": orderId,
@@ -120,9 +134,33 @@ exports.handler = async (event, context) => {
         errorName: error.name,
       },
     });
+    emitGetOrderLatencyMetric(startTime, {
+      orderId,
+      result: "ERROR",
+      errorName: error.name,
+    });
 
     return response.internalError({ message: "Internal server error" }, responseHeaders);
   } finally {
     await forceFlushOpenTelemetry();
   }
 };
+
+function emitGetOrderLatencyMetric(startTime, { orderId, result, status, errorName } = {}) {
+  emitMetric("GetOrderLatencyMs", durationMs(startTime), {
+    service: "order-api",
+    operation: "get-order",
+    unit: "Milliseconds",
+    attributes: {
+      "app.order_lookup_result": result,
+      "app.order_status": status,
+      "error.type": errorName,
+    },
+    properties: {
+      orderId,
+      result,
+      status,
+      errorName,
+    },
+  });
+}

@@ -623,6 +623,7 @@ jobs:
           | \`CreateOrderErrors\` | \`order-api\` | Create-order failures |
           | \`OrdersRead\` | \`order-api\` | Successful order reads |
           | \`OrdersNotFound\` | \`order-api\` | Missing-order lookups |
+          | \`GetOrderLatencyMs\` | \`order-api\` | Latency of \`GET /orders/{orderId}\` |
           | \`GetOrderErrors\` | \`order-api\` | Get-order failures |
           | \`OrdersProcessed\` | \`order-processor\` | Processed order events |
           | \`PaymentInvocationLatencyMs\` | \`order-processor\` | Payment invocation latency |
@@ -702,6 +703,7 @@ jobs:
               "CreateOrderErrors",
               "OrdersRead",
               "OrdersNotFound",
+              "GetOrderLatencyMs",
               "GetOrderErrors",
               "OrdersProcessed",
               "PaymentInvocationLatencyMs",
