@@ -26,7 +26,7 @@ on:
       log_retention_in_days:
         description: CloudWatch log retention in days
         required: false
-        default: "7"
+        default: "1"
         type: string
       metrics_namespace:
         description: CloudWatch metrics namespace for EMF
