@@ -32,7 +32,7 @@ function createHttpContext(event, lambdaContext, baseContext = {}) {
     awsRequestId: lambdaContext?.awsRequestId,
     requestId,
     correlationId,
-    traceId: process.env._X_AMZN_TRACE_ID,
+    traceId: extractTraceId(process.env._X_AMZN_TRACE_ID),
     coldStart: consumeColdStart(),
     routeKey: event?.requestContext?.routeKey,
     httpMethod: event?.requestContext?.http?.method,
@@ -54,7 +54,7 @@ function createEventContext(event, lambdaContext, baseContext = {}) {
     awsRequestId: lambdaContext?.awsRequestId,
     correlationId,
     requestId: detail.requestId,
-    traceId: process.env._X_AMZN_TRACE_ID,
+    traceId: extractTraceId(process.env._X_AMZN_TRACE_ID),
     coldStart: consumeColdStart(),
     eventId: event?.id,
     eventSource: event?.source,
@@ -74,7 +74,7 @@ function createInvocationContext(payload, lambdaContext, baseContext = {}) {
     awsRequestId: lambdaContext?.awsRequestId,
     correlationId,
     requestId: payload?.requestId,
-    traceId: process.env._X_AMZN_TRACE_ID,
+    traceId: extractTraceId(process.env._X_AMZN_TRACE_ID),
     coldStart: consumeColdStart(),
     orderId: payload?.orderId,
   });
@@ -307,6 +307,15 @@ function safeRequire(moduleName) {
 
     throw error;
   }
+}
+
+function extractTraceId(traceHeader) {
+  if (!traceHeader) {
+    return undefined;
+  }
+
+  const rootMatch = String(traceHeader).match(/Root=([^;]+)/);
+  return rootMatch ? rootMatch[1] : traceHeader;
 }
 
 module.exports = {

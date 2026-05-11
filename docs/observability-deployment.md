@@ -69,6 +69,7 @@ Alcance actual:
 - métricas OTLP: soportadas y visualizadas en Grafana vía Prometheus
 - en Lambda, las métricas custom del negocio se fuerzan a exportar al final de cada invocación para no depender solo del timer del SDK
 - trazas OTLP: soportadas y explorables en Grafana vía Tempo
+- el dashboard provisionado de Grafana incluye una guía `Trace View`, pero la exploración de spans ocurre en `Explore` con datasource `Tempo`
 - logs OTLP: collector y Loki listos para usarse cuando la app los emita
 - red: intenta usar primero una subnet pública de la región y, si no existe, cae a la primera subnet disponible
 - acceso a Grafana: usa `admin` y toma la contraseña de `OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD` desde GitHub `Secrets` si existe; si no, cae a `Variables` y luego a una aleatoria de Terraform
@@ -213,6 +214,7 @@ Resultado esperado:
 - si `OTEL_COLLECTOR_ENDPOINT` es un endpoint base OTLP/HTTP, el SDK deriva `.../v1/traces` y `.../v1/metrics` desde esa base
 - Grafana puede visualizarlas desde el datasource `Prometheus`
 - trazas OTLP siguen llegando a Alloy y Tempo
+- para revisar spans usa `Grafana > Explore > Tempo`; el panel `Trace View` del dashboard solo documenta la navegación recomendada
 
 ## Prueba local
 

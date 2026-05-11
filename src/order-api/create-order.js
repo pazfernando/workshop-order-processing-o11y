@@ -32,9 +32,7 @@ exports.handler = async (event, context) => {
     operation: "create-order",
   });
   const log = logger.createLogger(observabilityContext);
-  const responseHeaders = {
-    "x-correlation-id": observabilityContext.correlationId,
-  };
+  const responseHeaders = buildResponseHeaders(observabilityContext);
 
   try {
     const payload = parseBody(event.body);
@@ -139,6 +137,13 @@ exports.handler = async (event, context) => {
     await forceFlushOpenTelemetry();
   }
 };
+
+function buildResponseHeaders(observabilityContext) {
+  return {
+    "x-correlation-id": observabilityContext.correlationId,
+    ...(observabilityContext.traceId ? { "x-trace-id": observabilityContext.traceId } : {}),
+  };
+}
 
 function parseBody(body) {
   try {

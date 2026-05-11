@@ -65,6 +65,7 @@ flowchart LR
 
 - Correlación end-to-end con `x-correlation-id`, `requestId`, `awsRequestId` y `orderId`.
 - Propagación de `correlationId` desde `POST /orders` hacia EventBridge, `order-processor` y `payment-simulator`.
+- Las respuestas del API incluyen `x-correlation-id` y, cuando Lambda ya recibió un contexto de tracing, también `x-trace-id`.
 - Base de instrumentación OpenTelemetry en código, compatible con ADOT Lambda layer y con exporters OTLP cuando se configuren.
 - Estrategia recomendada de salida OTLP: `Collector primero`, para desacoplar la instrumentación del backend final.
 - Logs JSON consistentes por servicio con contexto reutilizable.
@@ -72,8 +73,10 @@ flowchart LR
 - Retención explícita de CloudWatch Logs configurable desde Terraform.
 - Access logs para API Gateway HTTP API.
 - Dashboard de CloudWatch con métricas técnicas y de negocio.
+- Guía operativa `Trace View` en el dashboard de CloudWatch para navegar entre X-Ray y CloudWatch Logs usando `x-trace-id` y `x-correlation-id`.
 - Alarmas básicas para 5xx del API, errores del procesador y latencia del simulador de pago.
 - Con `OTEL_EXPORT_STRATEGY=collector`, suite en EC2 con Grafana, Alloy, Prometheus, Tempo y Loki para visualizar métricas y trazas OTLP y dejar Loki listo para logs futuros.
+- El dashboard de Grafana incluye una guía `Trace View`; la exploración real de spans se hace en `Explore` con datasource `Tempo`.
 
 ### Métricas de negocio recolectadas
 
@@ -557,6 +560,22 @@ curl -X POST "${API_BASE_URL}/orders" \
 - X-Ray:
   - Revisa los traces de las Lambdas `create-order`, `get-order`, `order-processor` y `payment-simulator`.
   - El API no emite traces X-Ray por ser HTTP API; usa el access log para ese borde.
+  - Usa el header `x-trace-id` devuelto por el API para ubicar más rápido la ejecución dentro de X-Ray.
+- Correlation walkthrough:
+  - Usa `x-correlation-id` para seguir la transacción completa en logs, métricas y spans.
+  - Ejemplo de Logs Insights:
+
+```sql
+fields @timestamp, service, operation, correlationId, traceId, orderId, message
+| filter correlationId = "demo-001"
+| sort @timestamp asc
+```
+
+- Grafana Trace View:
+  - El panel `Trace View` del dashboard es una guía operativa; no renderiza spans directamente.
+  - Abre `Explore` con datasource `Tempo`.
+  - Busca spans por atributos como `app.correlation_id`, `app.order_id` o `service.name`.
+  - El dashboard provisionado ahora incluye un panel `Trace View` con estas guías.
 
 Respuesta esperada:
 

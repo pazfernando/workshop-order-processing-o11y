@@ -25,9 +25,7 @@ exports.handler = async (event, context) => {
     operation: "get-order",
   });
   const log = logger.createLogger(observabilityContext);
-  const responseHeaders = {
-    "x-correlation-id": observabilityContext.correlationId,
-  };
+  const responseHeaders = buildResponseHeaders(observabilityContext);
   const orderId = event.pathParameters?.orderId;
 
   setSpanAttributes({
@@ -163,4 +161,11 @@ function emitGetOrderLatencyMetric(startTime, { orderId, result, status, errorNa
       errorName,
     },
   });
+}
+
+function buildResponseHeaders(observabilityContext) {
+  return {
+    "x-correlation-id": observabilityContext.correlationId,
+    ...(observabilityContext.traceId ? { "x-trace-id": observabilityContext.traceId } : {}),
+  };
 }

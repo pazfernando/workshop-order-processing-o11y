@@ -123,6 +123,7 @@ Resultado:
 - cada handler hace `forceFlush` antes de terminar la invocación para no dejar métricas OTLP cortas en memoria
 - con `OTEL_COLLECTOR_ENDPOINT` vacío, Terraform provisiona la suite EC2 e infiere Alloy para trazas y métricas
 - si defines `OTEL_COLLECTOR_ENDPOINT`, apuntas a un Collector externo en vez de usar el Alloy inferido
+- Grafana recibe spans en `Tempo`; el dashboard provisionado agrega una guía `Trace View`, pero la exploración detallada se hace en `Explore`
 
 ### Caso 3: intentar ADOT Layer + Collector
 

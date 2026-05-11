@@ -527,6 +527,16 @@
           "legendFormat": "DuplicateEvents"
         }
       ]
+    },
+    {
+      "id": 18,
+      "type": "text",
+      "title": "Trace View",
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 32 },
+      "options": {
+        "mode": "markdown",
+        "content": "## Trace View\n\n- Open `Explore`, choose datasource `Tempo`, and search traces with span attributes already emitted by the app.\n- Recommended trace filters:\n  - `app.correlation_id=\"demo-001\"`\n  - `app.order_id=\"<order-id>\"`\n  - `service.name=\"order-api\"`\n- Use the API response header `x-correlation-id` to follow the whole request across metrics, logs and traces.\n- Use the API response header `x-trace-id` when you need to compare a Lambda invocation in X-Ray with the same request path in Grafana/Tempo.\n- Note: because the edge is `API Gateway HTTP API`, the trace starts in the Lambda span, not at the API Gateway edge."
+      }
     }
   ]
 }
