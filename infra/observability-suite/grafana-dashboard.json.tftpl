@@ -16,22 +16,22 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(CreateOrderErrors_total[$__rate_interval])) or vector(0)",
+          "expr": "sum(rate({__name__=~\"CreateOrderErrors_total|create_order_errors_total\"}[$__rate_interval])) or vector(0)",
           "legendFormat": "CreateOrderErrors"
         },
         {
           "refId": "B",
-          "expr": "sum(rate(GetOrderErrors_total[$__rate_interval])) or vector(0)",
+          "expr": "sum(rate({__name__=~\"GetOrderErrors_total|get_order_errors_total\"}[$__rate_interval])) or vector(0)",
           "legendFormat": "GetOrderErrors"
         },
         {
           "refId": "C",
-          "expr": "sum(rate(OrderProcessorErrors_total[$__rate_interval])) or vector(0)",
+          "expr": "sum(rate({__name__=~\"OrderProcessorErrors_total|order_processor_errors_total\"}[$__rate_interval])) or vector(0)",
           "legendFormat": "OrderProcessorErrors"
         },
         {
           "refId": "D",
-          "expr": "sum(rate(PaymentSimulationErrors_total[$__rate_interval])) or vector(0)",
+          "expr": "sum(rate({__name__=~\"PaymentSimulationErrors_total|payment_simulation_errors_total\"}[$__rate_interval])) or vector(0)",
           "legendFormat": "PaymentSimulationErrors"
         }
       ]
@@ -45,17 +45,17 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(OrdersRead_total[$__rate_interval])) or vector(0)",
+          "expr": "sum(rate({__name__=~\"OrdersRead_total|orders_read_total\"}[$__rate_interval])) or vector(0)",
           "legendFormat": "OrdersRead"
         },
         {
           "refId": "B",
-          "expr": "sum(rate(OrdersNotFound_total[$__rate_interval])) or vector(0)",
+          "expr": "sum(rate({__name__=~\"OrdersNotFound_total|orders_not_found_total\"}[$__rate_interval])) or vector(0)",
           "legendFormat": "OrdersNotFound"
         },
         {
           "refId": "C",
-          "expr": "sum(rate(GetOrderErrors_total[$__rate_interval])) or vector(0)",
+          "expr": "sum(rate({__name__=~\"GetOrderErrors_total|get_order_errors_total\"}[$__rate_interval])) or vector(0)",
           "legendFormat": "GetOrderErrors"
         }
       ]
@@ -69,12 +69,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(sum(rate(CreateOrderLatencyMs_milliseconds_sum[$__rate_interval])) / sum(rate(CreateOrderLatencyMs_milliseconds_count[$__rate_interval]))) or vector(0)",
+          "expr": "(sum(rate({__name__=~\"CreateOrderLatencyMs_milliseconds_sum|create_order_latency_ms_milliseconds_sum|CreateOrderLatencyMs_sum|create_order_latency_ms_sum\"}[$__rate_interval])) / sum(rate({__name__=~\"CreateOrderLatencyMs_milliseconds_count|create_order_latency_ms_milliseconds_count|CreateOrderLatencyMs_count|create_order_latency_ms_count\"}[$__rate_interval]))) or vector(0)",
           "legendFormat": "avg"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(CreateOrderLatencyMs_milliseconds_bucket[$__rate_interval]))) or vector(0)",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate({__name__=~\"CreateOrderLatencyMs_milliseconds_bucket|create_order_latency_ms_milliseconds_bucket|CreateOrderLatencyMs_bucket|create_order_latency_ms_bucket\"}[$__rate_interval]))) or vector(0)",
           "legendFormat": "p99"
         }
       ]
@@ -88,27 +88,27 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(sum(rate(GetOrderLatencyMs_milliseconds_sum[$__rate_interval])) / sum(rate(GetOrderLatencyMs_milliseconds_count[$__rate_interval]))) or vector(0)",
+          "expr": "(sum(rate({__name__=~\"GetOrderLatencyMs_milliseconds_sum|get_order_latency_ms_milliseconds_sum|GetOrderLatencyMs_sum|get_order_latency_ms_sum\"}[$__rate_interval])) / sum(rate({__name__=~\"GetOrderLatencyMs_milliseconds_count|get_order_latency_ms_milliseconds_count|GetOrderLatencyMs_count|get_order_latency_ms_count\"}[$__rate_interval]))) or vector(0)",
           "legendFormat": "Get avg"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(GetOrderLatencyMs_milliseconds_bucket[$__rate_interval]))) or vector(0)",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate({__name__=~\"GetOrderLatencyMs_milliseconds_bucket|get_order_latency_ms_milliseconds_bucket|GetOrderLatencyMs_bucket|get_order_latency_ms_bucket\"}[$__rate_interval]))) or vector(0)",
           "legendFormat": "Get p99"
         },
         {
           "refId": "C",
-          "expr": "(sum(rate(PaymentSimulationLatencyMs_milliseconds_sum[$__rate_interval])) / sum(rate(PaymentSimulationLatencyMs_milliseconds_count[$__rate_interval]))) or vector(0)",
+          "expr": "(sum(rate({__name__=~\"PaymentSimulationLatencyMs_milliseconds_sum|payment_simulation_latency_ms_milliseconds_sum|PaymentSimulationLatencyMs_sum|payment_simulation_latency_ms_sum\"}[$__rate_interval])) / sum(rate({__name__=~\"PaymentSimulationLatencyMs_milliseconds_count|payment_simulation_latency_ms_milliseconds_count|PaymentSimulationLatencyMs_count|payment_simulation_latency_ms_count\"}[$__rate_interval]))) or vector(0)",
           "legendFormat": "Payment sim avg"
         },
         {
           "refId": "D",
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(PaymentSimulationLatencyMs_milliseconds_bucket[$__rate_interval]))) or vector(0)",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate({__name__=~\"PaymentSimulationLatencyMs_milliseconds_bucket|payment_simulation_latency_ms_milliseconds_bucket|PaymentSimulationLatencyMs_bucket|payment_simulation_latency_ms_bucket\"}[$__rate_interval]))) or vector(0)",
           "legendFormat": "Payment sim p99"
         },
         {
           "refId": "E",
-          "expr": "(sum(rate(PaymentInvocationLatencyMs_milliseconds_sum[$__rate_interval])) / sum(rate(PaymentInvocationLatencyMs_milliseconds_count[$__rate_interval]))) or vector(0)",
+          "expr": "(sum(rate({__name__=~\"PaymentInvocationLatencyMs_milliseconds_sum|payment_invocation_latency_ms_milliseconds_sum|PaymentInvocationLatencyMs_sum|payment_invocation_latency_ms_sum\"}[$__rate_interval])) / sum(rate({__name__=~\"PaymentInvocationLatencyMs_milliseconds_count|payment_invocation_latency_ms_milliseconds_count|PaymentInvocationLatencyMs_count|payment_invocation_latency_ms_count\"}[$__rate_interval]))) or vector(0)",
           "legendFormat": "Invocation avg"
         }
       ]
@@ -122,7 +122,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(OrdersCreated_total[$__range])) or vector(0)",
+          "expr": "sum(increase({__name__=~\"OrdersCreated_total|orders_created_total\"}[$__range])) or vector(0)",
           "instant": true
         }
       ],
@@ -155,7 +155,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(OrdersRead_total[$__range])) or vector(0)",
+          "expr": "sum(increase({__name__=~\"OrdersRead_total|orders_read_total\"}[$__range])) or vector(0)",
           "instant": true
         }
       ],
@@ -188,7 +188,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(OrdersNotFound_total[$__range])) or vector(0)",
+          "expr": "sum(increase({__name__=~\"OrdersNotFound_total|orders_not_found_total\"}[$__range])) or vector(0)",
           "instant": true
         }
       ],
@@ -221,7 +221,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(OrdersProcessed_total[$__range])) or vector(0)",
+          "expr": "sum(increase({__name__=~\"OrdersProcessed_total|orders_processed_total\"}[$__range])) or vector(0)",
           "instant": true
         }
       ],
@@ -254,7 +254,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(GetOrderErrors_total[$__range])) or vector(0)",
+          "expr": "sum(increase({__name__=~\"GetOrderErrors_total|get_order_errors_total\"}[$__range])) or vector(0)",
           "instant": true
         }
       ],
@@ -287,7 +287,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(OrderProcessorErrors_total[$__range])) or vector(0)",
+          "expr": "sum(increase({__name__=~\"OrderProcessorErrors_total|order_processor_errors_total\"}[$__range])) or vector(0)",
           "instant": true
         }
       ],
@@ -320,7 +320,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(PaymentsSimulated_total[$__range])) or vector(0)",
+          "expr": "sum(increase({__name__=~\"PaymentsSimulated_total|payments_simulated_total\"}[$__range])) or vector(0)",
           "instant": true
         }
       ],
@@ -353,7 +353,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(PaymentSimulationErrors_total[$__range])) or vector(0)",
+          "expr": "sum(increase({__name__=~\"PaymentSimulationErrors_total|payment_simulation_errors_total\"}[$__range])) or vector(0)",
           "instant": true
         }
       ],
@@ -386,7 +386,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.99, sum by (le) (increase(CreateOrderLatencyMs_milliseconds_bucket[$__range]))) or vector(0)",
+          "expr": "histogram_quantile(0.99, sum by (le) (increase({__name__=~\"CreateOrderLatencyMs_milliseconds_bucket|create_order_latency_ms_milliseconds_bucket|CreateOrderLatencyMs_bucket|create_order_latency_ms_bucket\"}[$__range]))) or vector(0)",
           "instant": true
         }
       ],
@@ -419,7 +419,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.99, sum by (le) (increase(PaymentInvocationLatencyMs_milliseconds_bucket[$__range]))) or vector(0)",
+          "expr": "histogram_quantile(0.99, sum by (le) (increase({__name__=~\"PaymentInvocationLatencyMs_milliseconds_bucket|payment_invocation_latency_ms_milliseconds_bucket|PaymentInvocationLatencyMs_bucket|payment_invocation_latency_ms_bucket\"}[$__range]))) or vector(0)",
           "instant": true
         }
       ],
@@ -452,7 +452,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.99, sum by (le) (increase(GetOrderLatencyMs_milliseconds_bucket[$__range]))) or vector(0)",
+          "expr": "histogram_quantile(0.99, sum by (le) (increase({__name__=~\"GetOrderLatencyMs_milliseconds_bucket|get_order_latency_ms_milliseconds_bucket|GetOrderLatencyMs_bucket|get_order_latency_ms_bucket\"}[$__range]))) or vector(0)",
           "instant": true
         }
       ],
@@ -485,7 +485,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.99, sum by (le) (increase(PaymentSimulationLatencyMs_milliseconds_bucket[$__range]))) or vector(0)",
+          "expr": "histogram_quantile(0.99, sum by (le) (increase({__name__=~\"PaymentSimulationLatencyMs_milliseconds_bucket|payment_simulation_latency_ms_milliseconds_bucket|PaymentSimulationLatencyMs_bucket|payment_simulation_latency_ms_bucket\"}[$__range]))) or vector(0)",
           "instant": true
         }
       ],
@@ -518,12 +518,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(OrderProcessorIgnoredEvents_total[$__rate_interval])) or vector(0)",
+          "expr": "sum(rate({__name__=~\"OrderProcessorIgnoredEvents_total|order_processor_ignored_events_total\"}[$__rate_interval])) or vector(0)",
           "legendFormat": "IgnoredEvents"
         },
         {
           "refId": "B",
-          "expr": "sum(rate(OrderProcessorDuplicateEvents_total[$__rate_interval])) or vector(0)",
+          "expr": "sum(rate({__name__=~\"OrderProcessorDuplicateEvents_total|order_processor_duplicate_events_total\"}[$__rate_interval])) or vector(0)",
           "legendFormat": "DuplicateEvents"
         }
       ]
