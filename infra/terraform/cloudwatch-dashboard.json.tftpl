@@ -1,0 +1,269 @@
+{
+  "widgets": [
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 0,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "API Traffic And Errors",
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "${aws_region}",
+        "metrics": [
+          ["AWS/ApiGateway", "Count", "ApiId", "${api_id}", "Stage", "${api_stage}", { "stat": "Sum", "label": "RequestCount" }],
+          [".", "4xx", ".", ".", ".", ".", { "stat": "Sum", "label": "4xx" }],
+          [".", "5xx", ".", ".", ".", ".", { "stat": "Sum", "label": "5xx" }]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 0,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "API Latency",
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "${aws_region}",
+        "metrics": [
+          ["AWS/ApiGateway", "Latency", "ApiId", "${api_id}", "Stage", "${api_stage}", { "stat": "Average", "label": "LatencyMs" }],
+          [".", "IntegrationLatency", ".", ".", ".", ".", { "stat": "Average", "label": "IntegrationLatencyMs" }]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 6,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "Lambda Errors",
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "${aws_region}",
+        "metrics": [
+          ["AWS/Lambda", "Errors", "FunctionName", "${create_order_function_name}", { "stat": "Sum", "label": "create-order" }],
+          [".", ".", "FunctionName", "${get_order_function_name}", { "stat": "Sum", "label": "get-order" }],
+          [".", ".", "FunctionName", "${order_processor_function_name}", { "stat": "Sum", "label": "order-processor" }],
+          [".", ".", "FunctionName", "${payment_simulator_function_name}", { "stat": "Sum", "label": "payment-simulator" }]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 6,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "Lambda Duration",
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "${aws_region}",
+        "metrics": [
+          ["AWS/Lambda", "Duration", "FunctionName", "${create_order_function_name}", { "stat": "Average", "label": "create-order" }],
+          [".", ".", "FunctionName", "${get_order_function_name}", { "stat": "Average", "label": "get-order" }],
+          [".", ".", "FunctionName", "${order_processor_function_name}", { "stat": "Average", "label": "order-processor" }],
+          [".", ".", "FunctionName", "${payment_simulator_function_name}", { "stat": "Average", "label": "payment-simulator" }]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 12,
+      "width": 4,
+      "height": 6,
+      "properties": {
+        "title": "Orders Created",
+        "view": "singleValue",
+        "region": "${aws_region}",
+        "setPeriodToTimeRange": true,
+        "metrics": [
+          ["${metrics_namespace}", "OrdersCreated", "service", "order-api", "operation", "create-order", { "stat": "Sum" }]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 4,
+      "y": 12,
+      "width": 4,
+      "height": 6,
+      "properties": {
+        "title": "Orders Read",
+        "view": "singleValue",
+        "region": "${aws_region}",
+        "setPeriodToTimeRange": true,
+        "metrics": [
+          ["${metrics_namespace}", "OrdersRead", "service", "order-api", "operation", "get-order", { "stat": "Sum" }]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 8,
+      "y": 12,
+      "width": 4,
+      "height": 6,
+      "properties": {
+        "title": "Orders Not Found",
+        "view": "singleValue",
+        "region": "${aws_region}",
+        "setPeriodToTimeRange": true,
+        "metrics": [
+          ["${metrics_namespace}", "OrdersNotFound", "service", "order-api", "operation", "get-order", { "stat": "Sum" }]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 12,
+      "width": 4,
+      "height": 6,
+      "properties": {
+        "title": "Orders Processed",
+        "view": "singleValue",
+        "region": "${aws_region}",
+        "setPeriodToTimeRange": true,
+        "metrics": [
+          ["${metrics_namespace}", "OrdersProcessed", "service", "order-processor", "operation", "process-order-created", { "stat": "Sum" }]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 16,
+      "y": 12,
+      "width": 4,
+      "height": 6,
+      "properties": {
+        "title": "Get Order Errors",
+        "view": "singleValue",
+        "region": "${aws_region}",
+        "setPeriodToTimeRange": true,
+        "metrics": [
+          ["${metrics_namespace}", "GetOrderErrors", "service", "order-api", "operation", "get-order", { "stat": "Sum" }]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 20,
+      "y": 12,
+      "width": 4,
+      "height": 6,
+      "properties": {
+        "title": "Order Processor Errors",
+        "view": "singleValue",
+        "region": "${aws_region}",
+        "setPeriodToTimeRange": true,
+        "metrics": [
+          ["${metrics_namespace}", "OrderProcessorErrors", "service", "order-processor", "operation", "process-order-created", { "stat": "Sum" }]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 18,
+      "width": 4,
+      "height": 6,
+      "properties": {
+        "title": "Payments Simulated",
+        "view": "singleValue",
+        "region": "${aws_region}",
+        "setPeriodToTimeRange": true,
+        "metrics": [
+          ["${metrics_namespace}", "PaymentsSimulated", "service", "payment-simulator", "operation", "process-payment", { "stat": "Sum" }]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 4,
+      "y": 18,
+      "width": 4,
+      "height": 6,
+      "properties": {
+        "title": "Payment Simulation Errors",
+        "view": "singleValue",
+        "region": "${aws_region}",
+        "setPeriodToTimeRange": true,
+        "metrics": [
+          ["${metrics_namespace}", "PaymentSimulationErrors", "service", "payment-simulator", "operation", "process-payment", { "stat": "Sum" }]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 8,
+      "y": 18,
+      "width": 4,
+      "height": 6,
+      "properties": {
+        "title": "Create Order p99",
+        "view": "singleValue",
+        "region": "${aws_region}",
+        "setPeriodToTimeRange": true,
+        "metrics": [
+          ["${metrics_namespace}", "CreateOrderLatencyMs", "service", "order-api", "operation", "create-order", { "stat": "p99" }]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 18,
+      "width": 4,
+      "height": 6,
+      "properties": {
+        "title": "Get Order p99",
+        "view": "singleValue",
+        "region": "${aws_region}",
+        "setPeriodToTimeRange": true,
+        "metrics": [
+          ["${metrics_namespace}", "GetOrderLatencyMs", "service", "order-api", "operation", "get-order", { "stat": "p99" }]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 16,
+      "y": 18,
+      "width": 4,
+      "height": 6,
+      "properties": {
+        "title": "Payment Simulation p99",
+        "view": "singleValue",
+        "region": "${aws_region}",
+        "setPeriodToTimeRange": true,
+        "metrics": [
+          ["${metrics_namespace}", "PaymentSimulationLatencyMs", "service", "payment-simulator", "operation", "process-payment", { "stat": "p99" }]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 20,
+      "y": 18,
+      "width": 4,
+      "height": 6,
+      "properties": {
+        "title": "Payment Invocation p99",
+        "view": "singleValue",
+        "region": "${aws_region}",
+        "setPeriodToTimeRange": true,
+        "metrics": [
+          ["${metrics_namespace}", "PaymentInvocationLatencyMs", "service", "order-processor", "operation", "process-order-created", { "stat": "p99" }]
+        ]
+      }
+    }
+  ]
+}
