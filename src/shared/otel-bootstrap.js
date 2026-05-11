@@ -1,5 +1,6 @@
 const startedSymbol = Symbol.for("workshop-order-processing.otel.started");
 const sdkSymbol = Symbol.for("workshop-order-processing.otel.sdk");
+const sdkStartPromiseSymbol = Symbol.for("workshop-order-processing.otel.sdk.startPromise");
 
 bootstrapOpenTelemetry();
 
@@ -70,7 +71,7 @@ function bootstrapOpenTelemetry() {
 
     global[sdkSymbol] = sdk;
 
-    Promise.resolve(sdk.start()).catch((error) => {
+    global[sdkStartPromiseSymbol] = Promise.resolve(sdk.start()).catch((error) => {
       logDiagnostic(api, "Failed to start OpenTelemetry SDK", error);
     });
 
@@ -184,6 +185,11 @@ function forceFlushOpenTelemetry() {
   });
 }
 
+function waitForOpenTelemetry() {
+  return Promise.resolve(global[sdkStartPromiseSymbol]);
+}
+
 module.exports = {
   forceFlushOpenTelemetry,
+  waitForOpenTelemetry,
 };

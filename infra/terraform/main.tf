@@ -159,27 +159,19 @@ locals {
     )
   )
   effective_otlp_traces_endpoint = var.otel_export_strategy == "collector" ? (
-    local.collector_otlp_traces_endpoint != "" ? local.collector_otlp_traces_endpoint : (
-      local.collector_otlp_base_endpoint != "" ? local.collector_otlp_base_endpoint : (
-        local.observability_suite_enabled ? local.observability_suite_otlp_http_endpoint : ""
-      )
-    )
+    local.collector_otlp_traces_endpoint != "" ? local.collector_otlp_traces_endpoint : ""
     ) : (
     local.direct_otlp_traces_endpoint != "" ? local.direct_otlp_traces_endpoint : (
-      local.direct_otlp_base_endpoint != "" ? local.direct_otlp_base_endpoint : (
+      local.direct_otlp_base_endpoint != "" ? "" : (
         local.infer_cloudwatch_direct_endpoints ? local.inferred_cloudwatch_traces_otlp_endpoint : ""
       )
     )
   )
   effective_otlp_metrics_endpoint = var.otel_export_strategy == "collector" ? (
-    local.collector_otlp_metrics_endpoint != "" ? local.collector_otlp_metrics_endpoint : (
-      local.collector_otlp_base_endpoint != "" ? local.collector_otlp_base_endpoint : (
-        local.observability_suite_enabled ? local.observability_suite_otlp_http_endpoint : ""
-      )
-    )
+    local.collector_otlp_metrics_endpoint != "" ? local.collector_otlp_metrics_endpoint : ""
     ) : (
     local.direct_otlp_metrics_endpoint != "" ? local.direct_otlp_metrics_endpoint : (
-      local.direct_otlp_base_endpoint != "" ? local.direct_otlp_base_endpoint : (
+      local.direct_otlp_base_endpoint != "" ? "" : (
         local.infer_cloudwatch_direct_endpoints ? local.inferred_cloudwatch_metrics_otlp_endpoint : ""
       )
     )

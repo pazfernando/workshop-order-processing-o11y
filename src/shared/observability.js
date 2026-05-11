@@ -1,7 +1,7 @@
 const crypto = require("node:crypto");
 
 const otelApi = safeRequire("@opentelemetry/api");
-const { forceFlushOpenTelemetry } = require("./otel-bootstrap");
+const { forceFlushOpenTelemetry, waitForOpenTelemetry } = require("./otel-bootstrap");
 
 let coldStart = true;
 const otelInstruments = new Map();
@@ -319,4 +319,5 @@ module.exports = {
   forceFlushOpenTelemetry,
   recordException,
   setSpanAttributes,
+  waitForOpenTelemetry,
 };

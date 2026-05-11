@@ -16,6 +16,7 @@ const {
   forceFlushOpenTelemetry,
   recordException,
   setSpanAttributes,
+  waitForOpenTelemetry,
 } = require("../shared/observability");
 
 const lambdaClient = new LambdaClient({});
@@ -25,6 +26,8 @@ const ORDERS_TABLE_NAME = process.env.ORDERS_TABLE_NAME;
 const PAYMENT_SIMULATOR_FUNCTION_NAME = process.env.PAYMENT_SIMULATOR_FUNCTION_NAME;
 
 exports.handler = async (event, context) => {
+  await waitForOpenTelemetry();
+
   const startTime = Date.now();
   const detail = event.detail || {};
   const observabilityContext = createEventContext(event, context, {

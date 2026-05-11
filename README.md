@@ -145,6 +145,7 @@ Resumen operativo corto:
 - Si usas `adot_layer`, debes definir `ADOT_LAMBDA_LAYER_ARN`
 - Si usas `adot_layer` en este repo Node.js, Terraform configura `AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-handler`
 - Si usas `OTEL_EXPORT_STRATEGY=collector`, Terraform provisiona la suite EC2 y, si no defines endpoints explícitos, infiere el endpoint HTTP de Alloy para trazas y métricas
+- Si usas un endpoint base OTLP/HTTP con `OTEL_EXPORTER_OTLP_ENDPOINT` o `OTEL_COLLECTOR_ENDPOINT`, el SDK construye `.../v1/traces` y `.../v1/metrics`; no debes sobreescribir las variables por señal con la raíz desnuda `:4318`
 - Si usas `direct` con `adot_layer` y no defines overrides, Terraform infiere CloudWatch OTLP por señal en la región actual
 - Si usas `direct` con `code`, no apuntes a CloudWatch OTLP directo con este repo: los exporters en código no firman SigV4
 - Si usas `collector`, en este repo debes mantener `OTEL_MODE=code` para que las métricas custom del negocio lleguen a Grafana/Alloy/Prometheus
@@ -175,8 +176,8 @@ Resumen operativo corto:
 | `otel_exporter_otlp_traces_endpoint` | vacío | Para override directo de trazas |
 | `otel_exporter_otlp_metrics_endpoint` | vacío | Para override directo de métricas |
 | `otel_collector_endpoint` | vacío | Úsalo solo si quieres apuntar a un Collector distinto al Alloy inferido |
-| `otel_collector_traces_endpoint` | vacío | Override de trazas hacia Collector |
-| `otel_collector_metrics_endpoint` | vacío | Override de métricas hacia Collector |
+| `otel_collector_traces_endpoint` | vacío | Override de trazas hacia Collector; si es OTLP/HTTP debe incluir `/v1/traces` |
+| `otel_collector_metrics_endpoint` | vacío | Override de métricas hacia Collector; si es OTLP/HTTP debe incluir `/v1/metrics` |
 | `observability_emf_compatibility_mode` | `true` | Si quieres apagar EMF y quedarte solo con OTLP |
 | `create_observability_dashboard` | `true` | Si no quieres crear dashboard CloudWatch |
 | `create_observability_alarms` | `true` | Si no quieres crear alarmas CloudWatch |

@@ -12,12 +12,15 @@ const {
   forceFlushOpenTelemetry,
   recordException,
   setSpanAttributes,
+  waitForOpenTelemetry,
 } = require("../shared/observability");
 
 const dynamoClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const ORDERS_TABLE_NAME = process.env.ORDERS_TABLE_NAME;
 
 exports.handler = async (event, context) => {
+  await waitForOpenTelemetry();
+
   const startTime = Date.now();
   const observabilityContext = createHttpContext(event, context, {
     service: "order-api",

@@ -501,6 +501,17 @@ jobs:
           OBSERVABILITY_SUITE_OTLP_HTTP_ENDPOINT="$(terraform -chdir=infra/terraform output -raw observability_suite_otlp_http_endpoint || true)"
           OBSERVABILITY_SUITE_OTLP_GRPC_ENDPOINT="$(terraform -chdir=infra/terraform output -raw observability_suite_otlp_grpc_endpoint || true)"
 
+          DISPLAY_OTLP_TRACES_ENDPOINT="${EFFECTIVE_OTLP_TRACES_ENDPOINT}"
+          DISPLAY_OTLP_METRICS_ENDPOINT="${EFFECTIVE_OTLP_METRICS_ENDPOINT}"
+
+          if [ -z "$DISPLAY_OTLP_TRACES_ENDPOINT" ] && [ -n "$EFFECTIVE_OTLP_BASE_ENDPOINT" ] && [ "$EFFECTIVE_OTLP_BASE_ENDPOINT" != "cloudwatch-managed-per-signal" ]; then
+            DISPLAY_OTLP_TRACES_ENDPOINT="${EFFECTIVE_OTLP_BASE_ENDPOINT%/}/v1/traces"
+          fi
+
+          if [ -z "$DISPLAY_OTLP_METRICS_ENDPOINT" ] && [ -n "$EFFECTIVE_OTLP_BASE_ENDPOINT" ] && [ "$EFFECTIVE_OTLP_BASE_ENDPOINT" != "cloudwatch-managed-per-signal" ]; then
+            DISPLAY_OTLP_METRICS_ENDPOINT="${EFFECTIVE_OTLP_BASE_ENDPOINT%/}/v1/metrics"
+          fi
+
           if [ "$OTEL_MODE" = "adot_layer" ]; then
             OTEL_INITIALIZATION="ADOT Lambda Layer"
           else
@@ -580,8 +591,8 @@ jobs:
           | Requested ADOT Lambda Layer ARN | \`${ADOT_LAMBDA_LAYER_ARN}\` |
           | Effective ADOT Lambda Layer ARN | \`${EFFECTIVE_ADOT_LAMBDA_LAYER_ARN}\` |
           | Effective OTLP base endpoint | \`${EFFECTIVE_OTLP_BASE_ENDPOINT}\` |
-          | Effective OTLP traces endpoint | \`${EFFECTIVE_OTLP_TRACES_ENDPOINT}\` |
-          | Effective OTLP metrics endpoint | \`${EFFECTIVE_OTLP_METRICS_ENDPOINT}\` |
+          | Effective OTLP traces endpoint | \`${DISPLAY_OTLP_TRACES_ENDPOINT}\` |
+          | Effective OTLP metrics endpoint | \`${DISPLAY_OTLP_METRICS_ENDPOINT}\` |
           | Alloy OTLP HTTP endpoint | \`${OBSERVABILITY_SUITE_OTLP_HTTP_ENDPOINT}\` |
           | Alloy OTLP gRPC endpoint | \`${OBSERVABILITY_SUITE_OTLP_GRPC_ENDPOINT}\` |
           | Metrics namespace | \`${METRICS_NAMESPACE}\` |
@@ -637,7 +648,8 @@ jobs:
           - If \`OTEL_EXPORT_STRATEGY=direct\`, Lambdas export OTLP directly to the final backend.
           - If \`OTEL_EXPORT_STRATEGY=collector\`, Lambdas export OTLP to Alloy first and Terraform provisions the EC2 suite for the workshop.
           - If \`OTEL_MODE=adot_layer\` and all direct OTLP inputs are empty, Terraform infers CloudWatch OTLP traces and metrics endpoints for the selected region.
-          - If \`OTEL_EXPORT_STRATEGY=collector\` and no collector endpoint override is provided, Terraform infers the Alloy OTLP HTTP endpoint for both traces and metrics.
+          - If \`OTEL_EXPORT_STRATEGY=collector\` and no collector endpoint override is provided, Terraform infers the Alloy OTLP HTTP base endpoint and the SDK derives \`/v1/traces\` and \`/v1/metrics\` from it.
+          - If \`OTEL_EXPORTER_OTLP_ENDPOINT\` or \`OTEL_COLLECTOR_ENDPOINT\` is used as an OTLP/HTTP base endpoint, signal-specific endpoints must not be overwritten with the bare root URL unless they already include the full \`/v1/<signal>\` path.
           - In this repo, custom business metrics exported to a Collector are supported when \`OTEL_MODE=code\`, and the Lambda handlers forceFlush metrics before returning.
           - In this repo, \`OTEL_MODE=adot_layer\` is reserved for direct CloudWatch OTLP and should not be combined with \`OTEL_EXPORT_STRATEGY=collector\` for workshop business metrics.
           - If \`Application Signals execution role policy=true\`, Terraform attached \`CloudWatchLambdaApplicationSignalsExecutionRolePolicy\` to all Lambda execution roles.

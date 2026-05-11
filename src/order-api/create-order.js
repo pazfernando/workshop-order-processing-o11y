@@ -16,6 +16,7 @@ const {
   forceFlushOpenTelemetry,
   recordException,
   setSpanAttributes,
+  waitForOpenTelemetry,
 } = require("../shared/observability");
 
 const eventBridgeClient = new EventBridgeClient({});
@@ -25,6 +26,8 @@ const ORDERS_TABLE_NAME = process.env.ORDERS_TABLE_NAME;
 const EVENT_BUS_NAME = process.env.EVENT_BUS_NAME || "default";
 
 exports.handler = async (event, context) => {
+  await waitForOpenTelemetry();
+
   const startTime = Date.now();
   const observabilityContext = createHttpContext(event, context, {
     service: "order-api",

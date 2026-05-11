@@ -31,6 +31,11 @@ Notas de este repo:
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | URL o vacío | Endpoint base OTLP del backend final | Solo con `direct` |
 | `OTEL_COLLECTOR_ENDPOINT` | URL o vacío | Endpoint base OTLP del Collector | Solo con `collector`; opcional si Terraform infiere Alloy |
 
+Regla importante para OTLP/HTTP:
+
+- si usas un endpoint base como `http://host:4318`, el SDK deriva `.../v1/traces` y `.../v1/metrics`
+- si usas variables por señal, debes pasar la URL completa, por ejemplo `http://host:4318/v1/traces` y `http://host:4318/v1/metrics`
+
 ## Combinaciones
 
 | Modo | Qué hace | Ventaja principal | Costo / tradeoff |
@@ -128,11 +133,11 @@ Usa el layer ADOT para CloudWatch OTLP directo cuando esa sea la meta operativa.
 | `ADOT_LAMBDA_LAYER_ARN` | ARN o vacío | Solo con `adot_layer` | vacío |
 | `OTEL_EXPORT_STRATEGY` | `direct`, `collector` | Sí | `direct` hoy |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | URL o vacío | Solo con `direct` | vacío |
-| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | URL o vacío | No | vacío |
-| `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | URL o vacío | No | vacío |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | URL o vacío | No | vacío; si es OTLP/HTTP debe terminar en `/v1/traces` |
+| `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | URL o vacío | No | vacío; si es OTLP/HTTP debe terminar en `/v1/metrics` |
 | `OTEL_COLLECTOR_ENDPOINT` | URL o vacío | Solo con `collector` | vacío para inferir Alloy |
-| `OTEL_COLLECTOR_TRACES_ENDPOINT` | URL o vacío | No | vacío |
-| `OTEL_COLLECTOR_METRICS_ENDPOINT` | URL o vacío | No | vacío |
+| `OTEL_COLLECTOR_TRACES_ENDPOINT` | URL o vacío | No | vacío; si es OTLP/HTTP debe terminar en `/v1/traces` |
+| `OTEL_COLLECTOR_METRICS_ENDPOINT` | URL o vacío | No | vacío; si es OTLP/HTTP debe terminar en `/v1/metrics` |
 | `OTEL_METRIC_EXPORT_INTERVAL_MS` | entero positivo | No | `10000` |
 | `OBSERVABILITY_EMF_COMPATIBILITY_MODE` | `true`, `false` | No | `true` |
 
@@ -204,6 +209,7 @@ Resultado esperado:
 
 - métricas custom del negocio llegan a Alloy y Prometheus
 - cada handler hace `forceFlush` antes de terminar la invocación, para que Lambda no deje métricas OTLP sin exportar
+- si `OTEL_COLLECTOR_ENDPOINT` es un endpoint base OTLP/HTTP, el SDK deriva `.../v1/traces` y `.../v1/metrics` desde esa base
 - Grafana puede visualizarlas desde el datasource `Prometheus`
 - trazas OTLP siguen llegando a Alloy y Tempo
 

@@ -9,11 +9,14 @@ const {
   forceFlushOpenTelemetry,
   recordException,
   setSpanAttributes,
+  waitForOpenTelemetry,
 } = require("../shared/observability");
 
 const FAILURE_MODE = process.env.PAYMENT_FAILURE_MODE || "none";
 
 exports.handler = async (event, context) => {
+  await waitForOpenTelemetry();
+
   const startTime = Date.now();
   const log = logger.createLogger(
     createInvocationContext(event, context, {
