@@ -75,13 +75,15 @@ function bootstrapOpenTelemetry() {
       otelMetricExportIntervalMs: process.env.OTEL_METRIC_EXPORT_INTERVAL_MS || "",
     });
 
-    const resource = resources.resourceFromAttributes({
-      [semanticConventions.ATTR_SERVICE_NAME]:
-        process.env.OTEL_SERVICE_NAME || process.env.SERVICE_NAME || "workshop-order-processing",
-      [semanticConventions.ATTR_SERVICE_VERSION]: process.env.npm_package_version || "1.0.0",
-      [semanticConventions.ATTR_DEPLOYMENT_ENVIRONMENT]:
-        process.env.OTEL_DEPLOYMENT_ENVIRONMENT || process.env.RESOURCE_PREFIX || "local",
-    });
+    const resource = resources.Resource.default().merge(
+      new resources.Resource({
+        [semanticConventions.ATTR_SERVICE_NAME]:
+          process.env.OTEL_SERVICE_NAME || process.env.SERVICE_NAME || "workshop-order-processing",
+        [semanticConventions.ATTR_SERVICE_VERSION]: process.env.npm_package_version || "1.0.0",
+        "deployment.environment":
+          process.env.OTEL_DEPLOYMENT_ENVIRONMENT || process.env.RESOURCE_PREFIX || "local",
+      })
+    );
 
     const sdk = new sdkNode.NodeSDK({
       resource,
