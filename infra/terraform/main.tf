@@ -839,7 +839,6 @@ resource "aws_cloudwatch_dashboard" "observability" {
           title                = "Orders Created"
           view                 = "singleValue"
           region               = var.aws_region
-          sparkline            = false
           setPeriodToTimeRange = true
           metrics = [
             [var.metrics_namespace, "OrdersCreated", "service", "order-api", "operation", "create-order", { stat = "Sum" }]
@@ -856,7 +855,6 @@ resource "aws_cloudwatch_dashboard" "observability" {
           title                = "Orders Read"
           view                 = "singleValue"
           region               = var.aws_region
-          sparkline            = false
           setPeriodToTimeRange = true
           metrics = [
             [var.metrics_namespace, "OrdersRead", "service", "order-api", "operation", "get-order", { stat = "Sum" }]
@@ -873,7 +871,6 @@ resource "aws_cloudwatch_dashboard" "observability" {
           title                = "Orders Processed"
           view                 = "singleValue"
           region               = var.aws_region
-          sparkline            = false
           setPeriodToTimeRange = true
           metrics = [
             [var.metrics_namespace, "OrdersProcessed", "service", "order-processor", "operation", "process-order-created", { stat = "Sum" }]
@@ -890,7 +887,6 @@ resource "aws_cloudwatch_dashboard" "observability" {
           title                = "Create Order p99"
           view                 = "singleValue"
           region               = var.aws_region
-          sparkline            = false
           setPeriodToTimeRange = true
           metrics = [
             [var.metrics_namespace, "CreateOrderLatencyMs", "service", "order-api", "operation", "create-order", { stat = "p99" }]
@@ -907,7 +903,6 @@ resource "aws_cloudwatch_dashboard" "observability" {
           title                = "Get Order p99"
           view                 = "singleValue"
           region               = var.aws_region
-          sparkline            = false
           setPeriodToTimeRange = true
           metrics = [
             [var.metrics_namespace, "GetOrderLatencyMs", "service", "order-api", "operation", "get-order", { stat = "p99" }]
@@ -924,7 +919,6 @@ resource "aws_cloudwatch_dashboard" "observability" {
           title                = "Payment Simulation p99"
           view                 = "singleValue"
           region               = var.aws_region
-          sparkline            = false
           setPeriodToTimeRange = true
           metrics = [
             [var.metrics_namespace, "PaymentSimulationLatencyMs", "service", "payment-simulator", "operation", "process-payment", { stat = "p99" }]
