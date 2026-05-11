@@ -1,5 +1,3 @@
-require("../shared/otel-bootstrap");
-
 const logger = require("../shared/logger");
 const {
   addSpanEvent,

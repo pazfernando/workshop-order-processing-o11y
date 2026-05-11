@@ -1,5 +1,4 @@
 const startedSymbol = Symbol.for("workshop-order-processing.otel.started");
-const sdkSymbol = Symbol.for("workshop-order-processing.otel.sdk");
 const sdkStartPromiseSymbol = Symbol.for("workshop-order-processing.otel.sdk.startPromise");
 const logger = require("./logger");
 
@@ -38,15 +37,23 @@ function bootstrapOpenTelemetry() {
   const metricExporterModule = safeRequire("@opentelemetry/exporter-metrics-otlp-http");
   const sdkMetrics = safeRequire("@opentelemetry/sdk-metrics");
 
-  if (
-    !api ||
-    !sdkNode ||
-    !resources ||
-    !semanticConventions ||
-    !httpInstrumentation ||
-    !awsLambdaInstrumentation ||
-    !awsSdkInstrumentation
-  ) {
+  const missingDependencies = [
+    ["@opentelemetry/api", api],
+    ["@opentelemetry/sdk-node", sdkNode],
+    ["@opentelemetry/resources", resources],
+    ["@opentelemetry/semantic-conventions", semanticConventions],
+    ["@opentelemetry/instrumentation-http", httpInstrumentation],
+    ["@opentelemetry/instrumentation-aws-lambda", awsLambdaInstrumentation],
+    ["@opentelemetry/instrumentation-aws-sdk", awsSdkInstrumentation],
+  ]
+    .filter(([, moduleValue]) => !moduleValue)
+    .map(([moduleName]) => moduleName);
+
+  if (missingDependencies.length > 0) {
+    logBootstrapInfo("OpenTelemetry bootstrap skipped", {
+      reason: "missing-otel-dependencies",
+      missingDependencies,
+    });
     return;
   }
 
@@ -95,8 +102,6 @@ function bootstrapOpenTelemetry() {
         awsSdkInstrumentation
       ),
     });
-
-    global[sdkSymbol] = sdk;
 
     global[sdkStartPromiseSymbol] = Promise.resolve(sdk.start())
       .then(() => {

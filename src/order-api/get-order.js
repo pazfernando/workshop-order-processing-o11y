@@ -1,5 +1,3 @@
-require("../shared/otel-bootstrap");
-
 const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
 const { DynamoDBDocumentClient, GetCommand } = require("@aws-sdk/lib-dynamodb");
 const response = require("../shared/response");

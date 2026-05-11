@@ -1,5 +1,3 @@
-require("../shared/otel-bootstrap");
-
 const crypto = require("node:crypto");
 const { EventBridgeClient, PutEventsCommand } = require("@aws-sdk/client-eventbridge");
 const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");

@@ -123,7 +123,7 @@ variable "otel_metric_export_interval_ms" {
 variable "observability_emf_compatibility_mode" {
   description = "Whether to keep emitting CloudWatch EMF metrics in parallel while OTel is introduced."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "create_observability_dashboard" {
@@ -190,5 +190,5 @@ variable "observability_suite_otlp_allowed_cidrs" {
 variable "observability_suite_ssh_allowed_cidrs" {
   description = "CIDR ranges allowed to access the observability suite over SSH on port 22."
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+  default     = []
 }

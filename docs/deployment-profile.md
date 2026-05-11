@@ -62,7 +62,7 @@ Aunque el código ya está preparado con abstracciones `otel-first`, con el perf
 | `ADOT_LAMBDA_LAYER_ARN` | vacío |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | vacío |
 | `OTEL_COLLECTOR_ENDPOINT` | vacío |
-| `OBSERVABILITY_EMF_COMPATIBILITY_MODE` | `true` |
+| `OBSERVABILITY_EMF_COMPATIBILITY_MODE` | `false` |
 | `CREATE_OBSERVABILITY_DASHBOARD` | `true` |
 | `CREATE_OBSERVABILITY_ALARMS` | `true` |
 
@@ -151,7 +151,7 @@ Asumir este perfil:
 OTEL_MODE=code
 OTEL_EXPORT_STRATEGY=direct
 OTEL_EXPORTER_OTLP_ENDPOINT=
-OBSERVABILITY_EMF_COMPATIBILITY_MODE=true
+OBSERVABILITY_EMF_COMPATIBILITY_MODE=false
 ```
 
 Interpretación:

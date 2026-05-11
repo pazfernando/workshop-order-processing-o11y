@@ -97,7 +97,7 @@ flowchart LR
 Notas:
 
 - estas métricas se registran desde `src/shared/observability.js`
-- con `OBSERVABILITY_EMF_COMPATIBILITY_MODE=true`, salen además por EMF hacia CloudWatch Metrics
+- con `OBSERVABILITY_EMF_COMPATIBILITY_MODE=true`, salen además por EMF hacia CloudWatch Metrics; el default actual es `false`
 - si OTLP está activo, los mismos nombres se exportan también por OpenTelemetry
 
 Nota: esta solución usa API Gateway HTTP API. Esa variante no soporta tracing activo con X-Ray como sí ocurre con REST API, así que el API se observa mediante access logs; el tracing queda habilitado en las Lambdas.
@@ -178,11 +178,11 @@ Resumen operativo corto:
 | `otel_collector_endpoint` | vacío | Úsalo solo si quieres apuntar a un Collector distinto al Alloy inferido |
 | `otel_collector_traces_endpoint` | vacío | Override de trazas hacia Collector; si es OTLP/HTTP debe incluir `/v1/traces` |
 | `otel_collector_metrics_endpoint` | vacío | Override de métricas hacia Collector; si es OTLP/HTTP debe incluir `/v1/metrics` |
-| `observability_emf_compatibility_mode` | `true` | Si quieres apagar EMF y quedarte solo con OTLP |
+| `observability_emf_compatibility_mode` | `false` | Actívalo solo si necesitas compatibilidad temporal con EMF en CloudWatch |
 | `create_observability_dashboard` | `true` | Si no quieres crear dashboard CloudWatch |
 | `create_observability_alarms` | `true` | Si no quieres crear alarmas CloudWatch |
 | `observability_suite_instance_type` | `t3.small` | Si necesitas más CPU o memoria para la suite |
-| `observability_suite_ssh_allowed_cidrs` | `["0.0.0.0/0"]` | Si quieres acceso SSH a la EC2 de la suite; restringe la red cuando sea posible |
+| `observability_suite_ssh_allowed_cidrs` | `[]` | Solo si quieres acceso SSH a la EC2 de la suite; define CIDRs explícitas |
 
 Estos son los inputs manuales expuestos por `workflow_dispatch`. Los thresholds de alarmas, `OTEL_METRIC_EXPORT_INTERVAL_MS`, `TF_STATE_BUCKET`, `TF_STATE_KEY` y `OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD` siguen entrando desde GitHub environment/repository settings. Para el password de Grafana, usa `Secrets` como primera opción. `resource_prefix` también existe en `teardown.yml` para que puedas destruir exactamente el despliegue que elegiste crear.
 
@@ -197,7 +197,7 @@ Reglas importantes:
 - `OTEL_EXPORT_STRATEGY=collector` provisiona y usa la suite EC2 automáticamente
 - la suite en EC2 soporta hoy métricas OTLP hacia Prometheus y trazas OTLP hacia Tempo; Loki queda listo para logs OTLP futuros
 - la suite en EC2 intenta usar primero una subnet pública de la región y, si no existe, cae a la primera subnet disponible
-- el puerto `22` de la suite EC2 se controla con `OBSERVABILITY_SUITE_SSH_ALLOWED_CIDRS`; abrirlo no reemplaza SSM ni EC2 Instance Connect
+- el puerto `22` de la suite EC2 queda cerrado por defecto; si defines `OBSERVABILITY_SUITE_SSH_ALLOWED_CIDRS`, abrirlo no reemplaza SSM ni EC2 Instance Connect
 - si defines `OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD` en GitHub `Secrets`, Grafana usará esa clave fija; si no existe, el workflow cae a `Variables` y luego a una aleatoria de Terraform
 
 ## Despliegue local
@@ -237,14 +237,14 @@ export OTEL_EXPORTER_OTLP_ENDPOINT=""
 export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=""
 export OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=""
 export OTEL_METRIC_EXPORT_INTERVAL_MS="10000"
-export OBSERVABILITY_EMF_COMPATIBILITY_MODE="true"
+export OBSERVABILITY_EMF_COMPATIBILITY_MODE="false"
 export CREATE_OBSERVABILITY_DASHBOARD="true"
 export CREATE_OBSERVABILITY_ALARMS="true"
 export OBSERVABILITY_SUITE_INSTANCE_TYPE="t3.small"
 export OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB="20"
 export OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS='["0.0.0.0/0"]'
 export OBSERVABILITY_SUITE_OTLP_ALLOWED_CIDRS='["0.0.0.0/0"]'
-export OBSERVABILITY_SUITE_SSH_ALLOWED_CIDRS='["0.0.0.0/0"]'
+export OBSERVABILITY_SUITE_SSH_ALLOWED_CIDRS='[]'
 export API_5XX_ALARM_THRESHOLD="1"
 export ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD="1"
 export PAYMENT_LATENCY_ALARM_THRESHOLD_MS="3000"

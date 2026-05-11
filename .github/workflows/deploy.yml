@@ -139,7 +139,7 @@ jobs:
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${{ inputs.otel_exporter_otlp_traces_endpoint != '' && inputs.otel_exporter_otlp_traces_endpoint || vars.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT || '' }}
       OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: ${{ inputs.otel_exporter_otlp_metrics_endpoint != '' && inputs.otel_exporter_otlp_metrics_endpoint || vars.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT || '' }}
       OTEL_METRIC_EXPORT_INTERVAL_MS: ${{ vars.OTEL_METRIC_EXPORT_INTERVAL_MS != '' && vars.OTEL_METRIC_EXPORT_INTERVAL_MS || '10000' }}
-      OBSERVABILITY_EMF_COMPATIBILITY_MODE: ${{ inputs.observability_emf_compatibility_mode != '' && inputs.observability_emf_compatibility_mode || vars.OBSERVABILITY_EMF_COMPATIBILITY_MODE || 'true' }}
+      OBSERVABILITY_EMF_COMPATIBILITY_MODE: ${{ inputs.observability_emf_compatibility_mode != '' && inputs.observability_emf_compatibility_mode || vars.OBSERVABILITY_EMF_COMPATIBILITY_MODE || 'false' }}
       CREATE_OBSERVABILITY_DASHBOARD: ${{ inputs.create_observability_dashboard != '' && inputs.create_observability_dashboard || vars.CREATE_OBSERVABILITY_DASHBOARD || 'true' }}
       CREATE_OBSERVABILITY_ALARMS: ${{ inputs.create_observability_alarms != '' && inputs.create_observability_alarms || vars.CREATE_OBSERVABILITY_ALARMS || 'true' }}
       OBSERVABILITY_SUITE_INSTANCE_TYPE: ${{ inputs.observability_suite_instance_type != '' && inputs.observability_suite_instance_type || vars.OBSERVABILITY_SUITE_INSTANCE_TYPE || 't3.small' }}
@@ -151,7 +151,7 @@ jobs:
       PAYMENT_LATENCY_ALARM_THRESHOLD_MS: ${{ vars.PAYMENT_LATENCY_ALARM_THRESHOLD_MS != '' && vars.PAYMENT_LATENCY_ALARM_THRESHOLD_MS || '3000' }}
       OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS: ${{ vars.OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS != '' && vars.OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS || '["0.0.0.0/0"]' }}
       OBSERVABILITY_SUITE_OTLP_ALLOWED_CIDRS: ${{ vars.OBSERVABILITY_SUITE_OTLP_ALLOWED_CIDRS != '' && vars.OBSERVABILITY_SUITE_OTLP_ALLOWED_CIDRS || '["0.0.0.0/0"]' }}
-      OBSERVABILITY_SUITE_SSH_ALLOWED_CIDRS: ${{ vars.OBSERVABILITY_SUITE_SSH_ALLOWED_CIDRS != '' && vars.OBSERVABILITY_SUITE_SSH_ALLOWED_CIDRS || '["0.0.0.0/0"]' }}
+      OBSERVABILITY_SUITE_SSH_ALLOWED_CIDRS: ${{ vars.OBSERVABILITY_SUITE_SSH_ALLOWED_CIDRS != '' && vars.OBSERVABILITY_SUITE_SSH_ALLOWED_CIDRS || '[]' }}
       TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
       TF_STATE_KEY: ${{ vars.TF_STATE_KEY }}
 
@@ -608,7 +608,7 @@ jobs:
           | :--- | :--- |
           | Logs | CloudWatch Logs |
           | API edge telemetry | API Gateway access logs + native metrics |
-          | Business metrics | EMF to CloudWatch Metrics when compatibility mode is active |
+          | Business metrics | OTLP to Alloy/Prometheus/Grafana; EMF to CloudWatch only when compatibility mode is active |
           | Lambda traces | X-Ray |
           | OTLP traces | ${OTLP_EXPORT_STATUS_LABEL} |
           | OTLP metrics | ${OTLP_EXPORT_STATUS_LABEL} |
@@ -656,7 +656,7 @@ jobs:
           - In this repo, \`OTEL_MODE=adot_layer\` is reserved for direct CloudWatch OTLP and should not be combined with \`OTEL_EXPORT_STRATEGY=collector\` for workshop business metrics.
           - If \`Application Signals execution role policy=true\`, Terraform attached \`CloudWatchLambdaApplicationSignalsExecutionRolePolicy\` to all Lambda execution roles.
           - If \`effective_otlp_authentication_mode=sigv4\`, the selected OTLP backend requires SigV4 and this repo relies on the AWS-managed ADOT Lambda layer to satisfy that requirement at runtime.
-          - If all effective OTLP endpoints are empty, OTLP export is inactive and CloudWatch Logs / EMF / X-Ray remain the effective active path.
+          - If all effective OTLP endpoints are empty, OTLP export is inactive and CloudWatch Logs remain active; EMF and X-Ray depend on the selected compatibility mode and tracing path.
           EOF
 
           cat > build/artifacts/deployment-profile.json <<EOF

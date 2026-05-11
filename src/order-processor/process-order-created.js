@@ -1,5 +1,3 @@
-require("../shared/otel-bootstrap");
-
 const { LambdaClient, InvokeCommand } = require("@aws-sdk/client-lambda");
 const { ConditionalCheckFailedException, DynamoDBClient } = require("@aws-sdk/client-dynamodb");
 const {

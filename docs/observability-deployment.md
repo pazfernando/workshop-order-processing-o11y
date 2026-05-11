@@ -139,7 +139,7 @@ Usa el layer ADOT para CloudWatch OTLP directo cuando esa sea la meta operativa.
 | `OTEL_COLLECTOR_TRACES_ENDPOINT` | URL o vacío | No | vacío; si es OTLP/HTTP debe terminar en `/v1/traces` |
 | `OTEL_COLLECTOR_METRICS_ENDPOINT` | URL o vacío | No | vacío; si es OTLP/HTTP debe terminar en `/v1/metrics` |
 | `OTEL_METRIC_EXPORT_INTERVAL_MS` | entero positivo | No | `10000` |
-| `OBSERVABILITY_EMF_COMPATIBILITY_MODE` | `true`, `false` | No | `true` |
+| `OBSERVABILITY_EMF_COMPATIBILITY_MODE` | `true`, `false` | No | `false` |
 
 ### Dashboard y alarmas
 
@@ -167,7 +167,7 @@ Usa el layer ADOT para CloudWatch OTLP directo cuando esa sea la meta operativa.
 | `OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB` | entero positivo | No | `20` |
 | `OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS` | lista JSON de CIDRs | No | `["0.0.0.0/0"]` |
 | `OBSERVABILITY_SUITE_OTLP_ALLOWED_CIDRS` | lista JSON de CIDRs | No | `["0.0.0.0/0"]` |
-| `OBSERVABILITY_SUITE_SSH_ALLOWED_CIDRS` | lista JSON de CIDRs | No | `["0.0.0.0/0"]` |
+| `OBSERVABILITY_SUITE_SSH_ALLOWED_CIDRS` | lista JSON de CIDRs | No | `[]` |
 
 ## Ejemplos
 
@@ -177,7 +177,7 @@ Usa el layer ADOT para CloudWatch OTLP directo cuando esa sea la meta operativa.
 export OTEL_MODE="code"
 export OTEL_EXPORT_STRATEGY="direct"
 export OTEL_EXPORTER_OTLP_ENDPOINT=""
-export OBSERVABILITY_EMF_COMPATIBILITY_MODE="true"
+export OBSERVABILITY_EMF_COMPATIBILITY_MODE="false"
 ```
 
 ### Ejemplo 2: direct a backend OTLP genérico
@@ -186,7 +186,7 @@ export OBSERVABILITY_EMF_COMPATIBILITY_MODE="true"
 export OTEL_MODE="code"
 export OTEL_EXPORT_STRATEGY="direct"
 export OTEL_EXPORTER_OTLP_ENDPOINT="https://your-otlp-backend.example.com"
-export OBSERVABILITY_EMF_COMPATIBILITY_MODE="true"
+export OBSERVABILITY_EMF_COMPATIBILITY_MODE="false"
 ```
 
 Nota:
@@ -203,7 +203,7 @@ Nota:
 export OTEL_MODE="code"
 export OTEL_EXPORT_STRATEGY="collector"
 export OTEL_COLLECTOR_ENDPOINT="http://collector.internal:4318"
-export OBSERVABILITY_EMF_COMPATIBILITY_MODE="true"
+export OBSERVABILITY_EMF_COMPATIBILITY_MODE="false"
 ```
 
 Resultado esperado:
