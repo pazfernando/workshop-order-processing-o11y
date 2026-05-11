@@ -16,12 +16,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate({__name__=~\"orders_created.*\"}[5m]))",
+          "expr": "sum(rate(OrdersCreated_total[5m]))",
           "legendFormat": "OrdersCreated"
         },
         {
           "refId": "B",
-          "expr": "sum(rate({__name__=~\"orders_processed.*\"}[5m]))",
+          "expr": "sum(rate(OrdersProcessed_total[5m]))",
           "legendFormat": "OrdersProcessed"
         }
       ]
@@ -35,22 +35,22 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate({__name__=~\"create_order_errors.*\"}[5m]))",
+          "expr": "sum(rate(CreateOrderErrors_total[5m]))",
           "legendFormat": "CreateOrderErrors"
         },
         {
           "refId": "B",
-          "expr": "sum(rate({__name__=~\"get_order_errors.*\"}[5m]))",
+          "expr": "sum(rate(GetOrderErrors_total[5m]))",
           "legendFormat": "GetOrderErrors"
         },
         {
           "refId": "C",
-          "expr": "sum(rate({__name__=~\"order_processor_errors.*\"}[5m]))",
+          "expr": "sum(rate(OrderProcessorErrors_total[5m]))",
           "legendFormat": "OrderProcessorErrors"
         },
         {
           "refId": "D",
-          "expr": "sum(rate({__name__=~\"payment_simulation_errors.*\"}[5m]))",
+          "expr": "sum(rate(PaymentSimulationErrors_total[5m]))",
           "legendFormat": "PaymentSimulationErrors"
         }
       ]
@@ -64,7 +64,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate({__name__=~\"create_order_latency_ms.*_sum\"}[5m])) / sum(rate({__name__=~\"create_order_latency_ms.*_count\"}[5m]))",
+          "expr": "sum(rate(CreateOrderLatencyMs_milliseconds_sum[5m])) / sum(rate(CreateOrderLatencyMs_milliseconds_count[5m]))",
           "legendFormat": "CreateOrderLatencyMs"
         }
       ]
@@ -78,12 +78,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate({__name__=~\"payment_simulation_latency_ms.*_sum\"}[5m])) / sum(rate({__name__=~\"payment_simulation_latency_ms.*_count\"}[5m]))",
+          "expr": "sum(rate(PaymentSimulationLatencyMs_milliseconds_sum[5m])) / sum(rate(PaymentSimulationLatencyMs_milliseconds_count[5m]))",
           "legendFormat": "PaymentSimulationLatencyMs"
         },
         {
           "refId": "B",
-          "expr": "sum(rate({__name__=~\"payment_invocation_latency_ms.*_sum\"}[5m])) / sum(rate({__name__=~\"payment_invocation_latency_ms.*_count\"}[5m]))",
+          "expr": "sum(rate(PaymentInvocationLatencyMs_milliseconds_sum[5m])) / sum(rate(PaymentInvocationLatencyMs_milliseconds_count[5m]))",
           "legendFormat": "PaymentInvocationLatencyMs"
         }
       ]
@@ -97,12 +97,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate({__name__=~\"orders_read.*\"}[5m]))",
+          "expr": "sum(rate(OrdersRead_total[5m]))",
           "legendFormat": "OrdersRead"
         },
         {
           "refId": "B",
-          "expr": "sum(rate({__name__=~\"orders_not_found.*\"}[5m]))",
+          "expr": "sum(rate(OrdersNotFound_total[5m]))",
           "legendFormat": "OrdersNotFound"
         }
       ]
@@ -116,12 +116,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate({__name__=~\"order_processor_ignored_events.*\"}[5m]))",
+          "expr": "sum(rate(OrderProcessorIgnoredEvents_total[5m]))",
           "legendFormat": "IgnoredEvents"
         },
         {
           "refId": "B",
-          "expr": "sum(rate({__name__=~\"order_processor_duplicate_events.*\"}[5m]))",
+          "expr": "sum(rate(OrderProcessorDuplicateEvents_total[5m]))",
           "legendFormat": "DuplicateEvents"
         }
       ]
