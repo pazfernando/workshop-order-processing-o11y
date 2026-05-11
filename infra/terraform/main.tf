@@ -176,7 +176,7 @@ locals {
       )
     )
   )
-  otlp_export_status = local.effective_otlp_traces_endpoint != "" || local.effective_otlp_metrics_endpoint != "" ? "active" : "inactive"
+  otlp_export_status = local.effective_otlp_endpoint != "" || local.effective_otlp_traces_endpoint != "" || local.effective_otlp_metrics_endpoint != "" ? "active" : "inactive"
   effective_otlp_authentication_mode = var.otel_export_strategy == "collector" ? "collector-managed" : (
     local.direct_targets_cloudwatch ? "sigv4" : (
       local.otlp_export_status == "active" ? "backend-defined" : "inactive"

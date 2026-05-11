@@ -1,6 +1,7 @@
 const startedSymbol = Symbol.for("workshop-order-processing.otel.started");
 const sdkSymbol = Symbol.for("workshop-order-processing.otel.sdk");
 const sdkStartPromiseSymbol = Symbol.for("workshop-order-processing.otel.sdk.startPromise");
+const logger = require("./logger");
 
 bootstrapOpenTelemetry();
 
@@ -12,10 +13,17 @@ function bootstrapOpenTelemetry() {
   global[startedSymbol] = true;
 
   if (!isOtelEnabled()) {
+    logBootstrapInfo("OpenTelemetry bootstrap skipped", {
+      reason: "observability-otel-disabled",
+    });
     return;
   }
 
   if (isAdotLambdaLayerEnabled()) {
+    logBootstrapInfo("OpenTelemetry bootstrap skipped", {
+      reason: "adot-lambda-layer-wrapper-active",
+      awsLambdaExecWrapper: process.env.AWS_LAMBDA_EXEC_WRAPPER || "",
+    });
     return;
   }
 
@@ -46,10 +54,27 @@ function bootstrapOpenTelemetry() {
   const metricReader = buildMetricReader(metricExporterModule, sdkMetrics);
 
   if (!traceExporter && !metricReader) {
+    logBootstrapInfo("OpenTelemetry bootstrap skipped", {
+      reason: "no-trace-or-metric-exporters-configured",
+      otelExporterOtlpEndpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || "",
+      otelExporterOtlpTracesEndpoint: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT || "",
+      otelExporterOtlpMetricsEndpoint: process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT || "",
+    });
     return;
   }
 
   try {
+    logBootstrapInfo("OpenTelemetry bootstrap starting", {
+      traceExporterConfigured: Boolean(traceExporter),
+      metricReaderConfigured: Boolean(metricReader),
+      otelExporterOtlpEndpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || "",
+      otelExporterOtlpTracesEndpoint: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT || "",
+      otelExporterOtlpMetricsEndpoint: process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT || "",
+      otelMetricsExporter: process.env.OTEL_METRICS_EXPORTER || "",
+      otelTracesExporter: process.env.OTEL_TRACES_EXPORTER || "",
+      otelMetricExportIntervalMs: process.env.OTEL_METRIC_EXPORT_INTERVAL_MS || "",
+    });
+
     const resource = resources.resourceFromAttributes({
       [semanticConventions.ATTR_SERVICE_NAME]:
         process.env.OTEL_SERVICE_NAME || process.env.SERVICE_NAME || "workshop-order-processing",
@@ -71,9 +96,15 @@ function bootstrapOpenTelemetry() {
 
     global[sdkSymbol] = sdk;
 
-    global[sdkStartPromiseSymbol] = Promise.resolve(sdk.start()).catch((error) => {
-      logDiagnostic(api, "Failed to start OpenTelemetry SDK", error);
-    });
+    global[sdkStartPromiseSymbol] = Promise.resolve(sdk.start())
+      .then(() => {
+        logBootstrapInfo("OpenTelemetry SDK started", {
+          serviceName: process.env.OTEL_SERVICE_NAME || process.env.SERVICE_NAME || "workshop-order-processing",
+        });
+      })
+      .catch((error) => {
+        logDiagnostic(api, "Failed to start OpenTelemetry SDK", error);
+      });
 
     registerShutdown(api, sdk);
   } catch (error) {
@@ -144,6 +175,13 @@ function registerShutdown(api, sdk) {
 }
 
 function logDiagnostic(api, message, error) {
+  logger.error(message, {
+    component: "otel-bootstrap",
+    errorName: error?.name,
+    errorMessage: error?.message,
+    stack: error?.stack,
+  });
+
   if (api?.diag?.error) {
     api.diag.error(message, error);
     return;
@@ -179,14 +217,29 @@ function forceFlushOpenTelemetry() {
     return Promise.resolve();
   }
 
-  return Promise.resolve(sdk.forceFlush()).catch((error) => {
-    const api = safeRequire("@opentelemetry/api");
-    logDiagnostic(api, "Failed to force flush OpenTelemetry SDK", error);
-  });
+  return Promise.resolve(sdk.forceFlush())
+    .then(() => {
+      logger.info("OpenTelemetry SDK force flush completed", {
+        component: "otel-bootstrap",
+        serviceName: process.env.OTEL_SERVICE_NAME || process.env.SERVICE_NAME || "workshop-order-processing",
+      });
+    })
+    .catch((error) => {
+      const api = safeRequire("@opentelemetry/api");
+      logDiagnostic(api, "Failed to force flush OpenTelemetry SDK", error);
+    });
 }
 
 function waitForOpenTelemetry() {
   return Promise.resolve(global[sdkStartPromiseSymbol]);
+}
+
+function logBootstrapInfo(message, context = {}) {
+  logger.info(message, {
+    component: "otel-bootstrap",
+    serviceName: process.env.OTEL_SERVICE_NAME || process.env.SERVICE_NAME || "workshop-order-processing",
+    ...context,
+  });
 }
 
 module.exports = {
