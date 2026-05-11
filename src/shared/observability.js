@@ -32,7 +32,7 @@ function createHttpContext(event, lambdaContext, baseContext = {}) {
     awsRequestId: lambdaContext?.awsRequestId,
     requestId,
     correlationId,
-    traceId: extractTraceId(process.env._X_AMZN_TRACE_ID),
+    traceId: getCurrentTraceId(),
     coldStart: consumeColdStart(),
     routeKey: event?.requestContext?.routeKey,
     httpMethod: event?.requestContext?.http?.method,
@@ -54,7 +54,7 @@ function createEventContext(event, lambdaContext, baseContext = {}) {
     awsRequestId: lambdaContext?.awsRequestId,
     correlationId,
     requestId: detail.requestId,
-    traceId: extractTraceId(process.env._X_AMZN_TRACE_ID),
+    traceId: getCurrentTraceId(),
     coldStart: consumeColdStart(),
     eventId: event?.id,
     eventSource: event?.source,
@@ -74,7 +74,7 @@ function createInvocationContext(payload, lambdaContext, baseContext = {}) {
     awsRequestId: lambdaContext?.awsRequestId,
     correlationId,
     requestId: payload?.requestId,
-    traceId: extractTraceId(process.env._X_AMZN_TRACE_ID),
+    traceId: getCurrentTraceId(),
     coldStart: consumeColdStart(),
     orderId: payload?.orderId,
   });
@@ -151,6 +151,63 @@ function addSpanEvent(name, attributes = {}) {
   }
 
   span.addEvent(name, normalizeAttributes(attributes));
+}
+
+function injectTraceContext(carrier = {}) {
+  if (!otelApi?.propagation?.inject || !otelApi?.context?.active) {
+    return carrier;
+  }
+
+  otelApi.propagation.inject(otelApi.context.active(), carrier);
+  return carrier;
+}
+
+function extractTraceContext(carrier = {}) {
+  if (!otelApi?.propagation?.extract || !otelApi?.ROOT_CONTEXT) {
+    return undefined;
+  }
+
+  return otelApi.propagation.extract(otelApi.ROOT_CONTEXT, carrier);
+}
+
+async function runWithActiveSpan(name, options = {}, callback) {
+  const tracer = otelApi?.trace?.getTracer?.(
+    process.env.OTEL_TRACER_NAME || process.env.SERVICE_NAME || "workshop-order-processing",
+    process.env.npm_package_version || "1.0.0"
+  );
+
+  if (!tracer || typeof tracer.startActiveSpan !== "function") {
+    return callback();
+  }
+
+  const parentContext = options.parentContext || otelApi?.context?.active?.();
+  const spanOptions = {
+    kind: resolveSpanKind(options.kind),
+    attributes: normalizeAttributes(options.attributes),
+  };
+
+  return otelApi.context.with(parentContext, () =>
+    tracer.startActiveSpan(name, spanOptions, async (span) => {
+      try {
+        return await callback(span);
+      } catch (error) {
+        if (typeof span.recordException === "function") {
+          span.recordException(error);
+        }
+
+        if (otelApi?.SpanStatusCode?.ERROR && typeof span.setStatus === "function") {
+          span.setStatus({
+            code: otelApi.SpanStatusCode.ERROR,
+            message: error.message,
+          });
+        }
+
+        throw error;
+      } finally {
+        span.end();
+      }
+    })
+  );
 }
 
 function recordException(error, attributes = {}) {
@@ -247,6 +304,16 @@ function getMeter() {
   );
 }
 
+function getCurrentTraceId() {
+  const activeTraceId = otelApi?.trace?.getActiveSpan?.()?.spanContext?.()?.traceId;
+
+  if (activeTraceId) {
+    return activeTraceId;
+  }
+
+  return extractTraceId(process.env._X_AMZN_TRACE_ID);
+}
+
 function normalizeAttributes(attributes) {
   return Object.fromEntries(
     Object.entries(attributes || {}).filter(([, value]) =>
@@ -283,6 +350,18 @@ function resolveInstrumentType(options = {}) {
   }
 
   return "counter";
+}
+
+function resolveSpanKind(kind) {
+  if (!otelApi?.SpanKind || !kind) {
+    return kind;
+  }
+
+  if (typeof kind === "number") {
+    return kind;
+  }
+
+  return otelApi.SpanKind[kind] || undefined;
 }
 
 function shouldEmitEmfCompatibility() {
@@ -325,8 +404,11 @@ module.exports = {
   createInvocationContext,
   durationMs,
   emitMetric,
+  extractTraceContext,
   forceFlushOpenTelemetry,
+  injectTraceContext,
   recordException,
+  runWithActiveSpan,
   setSpanAttributes,
   waitForOpenTelemetry,
 };

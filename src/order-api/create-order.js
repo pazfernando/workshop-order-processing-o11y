@@ -12,7 +12,9 @@ const {
   durationMs,
   emitMetric,
   forceFlushOpenTelemetry,
+  injectTraceContext,
   recordException,
+  runWithActiveSpan,
   setSpanAttributes,
   waitForOpenTelemetry,
 } = require("../shared/observability");
@@ -26,116 +28,119 @@ const EVENT_BUS_NAME = process.env.EVENT_BUS_NAME || "default";
 exports.handler = async (event, context) => {
   await waitForOpenTelemetry();
 
-  const startTime = Date.now();
-  const observabilityContext = createHttpContext(event, context, {
-    service: "order-api",
-    operation: "create-order",
-  });
-  const log = logger.createLogger(observabilityContext);
-  const responseHeaders = buildResponseHeaders(observabilityContext);
-
-  try {
-    const payload = parseBody(event.body);
-    validateOrderPayload(payload);
-
-    const now = new Date().toISOString();
-    const orderId = crypto.randomUUID();
-    const totalAmount = calculateTotalAmount(payload.items);
-
-    const order = {
-      orderId,
-      customerId: payload.customerId,
-      items: payload.items,
-      currency: payload.currency,
-      totalAmount,
-      status: "PENDING",
-      paymentStatus: "PENDING",
-      correlationId: observabilityContext.correlationId,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    setSpanAttributes({
-      "app.order_id": orderId,
-    });
-
-    await dynamoClient.send(
-      new PutCommand({
-        TableName: ORDERS_TABLE_NAME,
-        Item: order,
-        ConditionExpression: "attribute_not_exists(orderId)",
-      })
-    );
-
-    const publishResult = await eventBridgeClient.send(
-      new PutEventsCommand({
-        Entries: [
-          {
-            EventBusName: EVENT_BUS_NAME,
-            Source: "workshop.orders",
-            DetailType: "OrderCreated",
-            Detail: JSON.stringify({
-              eventType: "OrderCreated",
-              eventVersion: "1.0",
-              orderId,
-              correlationId: observabilityContext.correlationId,
-              requestId: observabilityContext.requestId,
-              customerId: payload.customerId,
-              totalAmount,
-              currency: payload.currency,
-              createdAt: now,
-            }),
-          },
-        ],
-      })
-    );
-
-    if (publishResult.FailedEntryCount > 0) {
-      const failureReason = publishResult.Entries?.[0]?.ErrorMessage || "Unknown EventBridge error";
-
-      await markOrderAsFailed(orderId, failureReason);
-
-      throw new AppError("Order event publication failed", 500, { orderId, failureReason });
-    }
-
-    const latencyMs = durationMs(startTime);
-
-    log.info("Order created", {
-      orderId,
-      customerId: payload.customerId,
-      totalAmount,
-      latencyMs,
-    });
-    emitMetric("OrdersCreated", 1, {
+  return runWithActiveSpan("create-order", { kind: "SERVER" }, async () => {
+    const startTime = Date.now();
+    const observabilityContext = createHttpContext(event, context, {
       service: "order-api",
       operation: "create-order",
-      attributes: {
-        "app.order_status": "PENDING",
-      },
-      properties: {
+    });
+    const log = logger.createLogger(observabilityContext);
+    const responseHeaders = buildResponseHeaders(observabilityContext);
+
+    try {
+      const payload = parseBody(event.body);
+      validateOrderPayload(payload);
+
+      const now = new Date().toISOString();
+      const orderId = crypto.randomUUID();
+      const totalAmount = calculateTotalAmount(payload.items);
+
+      const order = {
         orderId,
+        customerId: payload.customerId,
+        items: payload.items,
+        currency: payload.currency,
+        totalAmount,
+        status: "PENDING",
+        paymentStatus: "PENDING",
         correlationId: observabilityContext.correlationId,
-      },
-    });
-    emitMetric("CreateOrderLatencyMs", latencyMs, {
-      service: "order-api",
-      operation: "create-order",
-      unit: "Milliseconds",
-      properties: {
-        orderId,
-      },
-    });
-    addSpanEvent("order.created", {
-      "app.order_id": orderId,
-      "app.order_status": "PENDING",
-    });
+        createdAt: now,
+        updatedAt: now,
+      };
 
-    return response.created({ orderId, status: "PENDING" }, responseHeaders);
-  } catch (error) {
-    return handleError(error, log, startTime, responseHeaders);
-  } finally {
-    await forceFlushOpenTelemetry();
-  }
+      setSpanAttributes({
+        "app.order_id": orderId,
+      });
+
+      await dynamoClient.send(
+        new PutCommand({
+          TableName: ORDERS_TABLE_NAME,
+          Item: order,
+          ConditionExpression: "attribute_not_exists(orderId)",
+        })
+      );
+
+      const publishResult = await eventBridgeClient.send(
+        new PutEventsCommand({
+          Entries: [
+            {
+              EventBusName: EVENT_BUS_NAME,
+              Source: "workshop.orders",
+              DetailType: "OrderCreated",
+              Detail: JSON.stringify({
+                eventType: "OrderCreated",
+                eventVersion: "1.0",
+                orderId,
+                correlationId: observabilityContext.correlationId,
+                requestId: observabilityContext.requestId,
+                customerId: payload.customerId,
+                totalAmount,
+                currency: payload.currency,
+                createdAt: now,
+                traceContext: injectTraceContext({}),
+              }),
+            },
+          ],
+        })
+      );
+
+      if (publishResult.FailedEntryCount > 0) {
+        const failureReason = publishResult.Entries?.[0]?.ErrorMessage || "Unknown EventBridge error";
+
+        await markOrderAsFailed(orderId, failureReason);
+
+        throw new AppError("Order event publication failed", 500, { orderId, failureReason });
+      }
+
+      const latencyMs = durationMs(startTime);
+
+      log.info("Order created", {
+        orderId,
+        customerId: payload.customerId,
+        totalAmount,
+        latencyMs,
+      });
+      emitMetric("OrdersCreated", 1, {
+        service: "order-api",
+        operation: "create-order",
+        attributes: {
+          "app.order_status": "PENDING",
+        },
+        properties: {
+          orderId,
+          correlationId: observabilityContext.correlationId,
+        },
+      });
+      emitMetric("CreateOrderLatencyMs", latencyMs, {
+        service: "order-api",
+        operation: "create-order",
+        unit: "Milliseconds",
+        properties: {
+          orderId,
+        },
+      });
+      addSpanEvent("order.created", {
+        "app.order_id": orderId,
+        "app.order_status": "PENDING",
+      });
+
+      return response.created({ orderId, status: "PENDING" }, responseHeaders);
+    } catch (error) {
+      return handleError(error, log, startTime, responseHeaders);
+    } finally {
+      await forceFlushOpenTelemetry();
+    }
+  });
 };
 
 function buildResponseHeaders(observabilityContext) {

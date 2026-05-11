@@ -11,8 +11,11 @@ const {
   createEventContext,
   durationMs,
   emitMetric,
+  extractTraceContext,
   forceFlushOpenTelemetry,
   recordException,
+  injectTraceContext,
+  runWithActiveSpan,
   setSpanAttributes,
   waitForOpenTelemetry,
 } = require("../shared/observability");
@@ -26,124 +29,141 @@ const PAYMENT_SIMULATOR_FUNCTION_NAME = process.env.PAYMENT_SIMULATOR_FUNCTION_N
 exports.handler = async (event, context) => {
   await waitForOpenTelemetry();
 
-  const startTime = Date.now();
   const detail = event.detail || {};
-  const observabilityContext = createEventContext(event, context, {
-    service: "order-processor",
-    operation: "process-order-created",
-  });
-  const log = logger.createLogger(observabilityContext);
-  const orderId = detail.orderId;
+  const parentContext = extractTraceContext(detail.traceContext);
 
-  setSpanAttributes({
-    "app.order_id": orderId,
-  });
-
-  log.info("Order processor received event", { records: event.detail ? 1 : 0 });
-
-  if (!orderId) {
-    log.warn("Event without orderId was ignored", { detail });
-    emitMetric("OrderProcessorIgnoredEvents", 1, {
-      service: "order-processor",
-      operation: "process-order-created",
+  return runWithActiveSpan(
+    "process-order-created",
+    {
+      parentContext,
+      kind: "CONSUMER",
       attributes: {
-        "app.ignore_reason": "missing-order-id",
+        "messaging.system": "aws.eventbridge",
+        "messaging.operation": "process",
+        "messaging.destination.name": process.env.EVENT_BUS_NAME || "default",
+        "messaging.message.id": event.id,
       },
-      properties: {
-        reason: "missing-order-id",
-      },
-    });
-    return;
-  }
-
-  try {
-    const order = await moveOrderToProcessing(orderId);
-    const paymentStartTime = Date.now();
-    const paymentResult = await invokePaymentSimulator(order, observabilityContext);
-    const paymentLatencyMs = durationMs(paymentStartTime);
-    await finalizeOrder(orderId, paymentResult);
-
-    log.info("Order processed successfully", {
-      orderId,
-      finalStatus: paymentResult.paymentStatus,
-      paymentLatencyMs,
-      processingLatencyMs: durationMs(startTime),
-    });
-    emitMetric("OrdersProcessed", 1, {
-      service: "order-processor",
-      operation: "process-order-created",
-      attributes: {
-        "app.payment_status": paymentResult.paymentStatus,
-      },
-      properties: {
-        orderId,
-        paymentStatus: paymentResult.paymentStatus,
-      },
-    });
-    emitMetric("PaymentInvocationLatencyMs", paymentLatencyMs, {
-      service: "order-processor",
-      operation: "process-order-created",
-      unit: "Milliseconds",
-      properties: {
-        orderId,
-      },
-    });
-    addSpanEvent("order.processed", {
-      "app.order_id": orderId,
-      "app.payment_status": paymentResult.paymentStatus,
-    });
-  } catch (error) {
-    if (error instanceof ConditionalCheckFailedException) {
-      const currentOrder = await getOrder(orderId);
-      log.info("Duplicate or already processed event skipped", {
-        orderId,
-        currentStatus: currentOrder?.status,
-      });
-      emitMetric("OrderProcessorDuplicateEvents", 1, {
+    },
+    async () => {
+      const startTime = Date.now();
+      const observabilityContext = createEventContext(event, context, {
         service: "order-processor",
         operation: "process-order-created",
-        attributes: {
-          "app.order_status": currentOrder?.status,
-        },
-        properties: {
-          orderId,
-          currentStatus: currentOrder?.status,
-        },
       });
-      addSpanEvent("order.processing.skipped", {
+      const log = logger.createLogger(observabilityContext);
+      const orderId = detail.orderId;
+
+      setSpanAttributes({
         "app.order_id": orderId,
-        "app.order_status": currentOrder?.status,
       });
-      return;
+
+      log.info("Order processor received event", { records: event.detail ? 1 : 0 });
+
+      if (!orderId) {
+        log.warn("Event without orderId was ignored", { detail });
+        emitMetric("OrderProcessorIgnoredEvents", 1, {
+          service: "order-processor",
+          operation: "process-order-created",
+          attributes: {
+            "app.ignore_reason": "missing-order-id",
+          },
+          properties: {
+            reason: "missing-order-id",
+          },
+        });
+        return;
+      }
+
+      try {
+        const order = await moveOrderToProcessing(orderId);
+        const paymentStartTime = Date.now();
+        const paymentResult = await invokePaymentSimulator(order, observabilityContext);
+        const paymentLatencyMs = durationMs(paymentStartTime);
+        await finalizeOrder(orderId, paymentResult);
+
+        log.info("Order processed successfully", {
+          orderId,
+          finalStatus: paymentResult.paymentStatus,
+          paymentLatencyMs,
+          processingLatencyMs: durationMs(startTime),
+        });
+        emitMetric("OrdersProcessed", 1, {
+          service: "order-processor",
+          operation: "process-order-created",
+          attributes: {
+            "app.payment_status": paymentResult.paymentStatus,
+          },
+          properties: {
+            orderId,
+            paymentStatus: paymentResult.paymentStatus,
+          },
+        });
+        emitMetric("PaymentInvocationLatencyMs", paymentLatencyMs, {
+          service: "order-processor",
+          operation: "process-order-created",
+          unit: "Milliseconds",
+          properties: {
+            orderId,
+          },
+        });
+        addSpanEvent("order.processed", {
+          "app.order_id": orderId,
+          "app.payment_status": paymentResult.paymentStatus,
+        });
+      } catch (error) {
+        if (error instanceof ConditionalCheckFailedException) {
+          const currentOrder = await getOrder(orderId);
+          log.info("Duplicate or already processed event skipped", {
+            orderId,
+            currentStatus: currentOrder?.status,
+          });
+          emitMetric("OrderProcessorDuplicateEvents", 1, {
+            service: "order-processor",
+            operation: "process-order-created",
+            attributes: {
+              "app.order_status": currentOrder?.status,
+            },
+            properties: {
+              orderId,
+              currentStatus: currentOrder?.status,
+            },
+          });
+          addSpanEvent("order.processing.skipped", {
+            "app.order_id": orderId,
+            "app.order_status": currentOrder?.status,
+          });
+          return;
+        }
+
+        recordException(error, {
+          "app.operation": "process-order-created",
+        });
+
+        log.error("Order processing failed", {
+          orderId,
+          errorName: error.name,
+          errorMessage: error.message,
+          processingLatencyMs: durationMs(startTime),
+        });
+        emitMetric("OrderProcessorErrors", 1, {
+          service: "order-processor",
+          operation: "process-order-created",
+          attributes: {
+            "error.type": error.name,
+          },
+          properties: {
+            orderId,
+            errorName: error.name,
+          },
+        });
+
+        await failOrder(orderId, error.message);
+        throw error;
+      } finally {
+        await forceFlushOpenTelemetry();
+      }
     }
-
-    recordException(error, {
-      "app.operation": "process-order-created",
-    });
-
-    log.error("Order processing failed", {
-      orderId,
-      errorName: error.name,
-      errorMessage: error.message,
-      processingLatencyMs: durationMs(startTime),
-    });
-    emitMetric("OrderProcessorErrors", 1, {
-      service: "order-processor",
-      operation: "process-order-created",
-      attributes: {
-        "error.type": error.name,
-      },
-      properties: {
-        orderId,
-        errorName: error.name,
-      },
-    });
-
-    await failOrder(orderId, error.message);
-    throw error;
-  } finally {
-    await forceFlushOpenTelemetry();
-  }
+  );
 };
 
 async function moveOrderToProcessing(orderId) {
@@ -187,6 +207,7 @@ async function invokePaymentSimulator(order, observabilityContext) {
           currency: order.currency,
           correlationId: observabilityContext.correlationId,
           requestId: observabilityContext.requestId,
+          traceContext: injectTraceContext({}),
         })
       ),
     })
