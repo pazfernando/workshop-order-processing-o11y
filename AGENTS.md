@@ -1,56 +1,99 @@
 # AGENTS.md
 
-## Propósito del repositorio
+## Project Overview
 
-Este repositorio contiene un caso de negocio base para talleres técnicos sobre AWS Serverless. La prioridad es mantener un flujo funcional, simple de explicar y fácil de extender con observabilidad en iteraciones posteriores.
+This repository contains the baseline business case for senior AWS Serverless workshops. The main goal is to keep the order-processing flow functional, easy to explain, and easy to extend in later observability iterations.
 
-## Cómo trabajar en este repo
+Treat this file as the operational contract for coding agents working in this repo. For broader runtime, deployment, and observability context, consult `@README.md`, `@docs/observability-deployment.md`, `@docs/deployment-profile.md`, `@.github/workflows/ci.yml`, and `@.github/workflows/deploy.yml`.
 
-- Mantener el MVP simple. No introducir Step Functions, SQS, Event Sourcing ni patrones adicionales salvo que el usuario lo pida explícitamente.
-- Conservar la arquitectura actual basada en API Gateway, Lambda, DynamoDB, EventBridge y una Lambda separada para el simulador de pago.
-- Favorecer cambios pequeños, legibles y fáciles de demostrar en un workshop.
-- No agregar dependencias innecesarias.
-- Mantener logs en JSON.
-- La convención de observabilidad es `otel-first`: nueva instrumentación de trazas, métricas y correlación debe diseñarse primero con OpenTelemetry y no acoplarse a un backend específico.
-- CloudWatch sigue siendo el backend de observabilidad por defecto en AWS, pero la instrumentación debe permitir exportar las mismas señales a terceros en el futuro, por ejemplo Datadog, Grafana Cloud o Prometheus, con cambios mínimos fuera de la capa de exportación.
-- Favorecer una capa compartida de observabilidad en `src/shared/observability.js` para centralizar inicialización, nombres de métricas, atributos comunes, correlación y la estrategia de exportación.
-- Preservar puntos claros para futuras extensiones con OpenTelemetry SDK, OTLP y Collector sin romper el flujo funcional actual.
-- Si se agrega, renombra o elimina una métrica emitida por la aplicación, actualizar en el mismo cambio el catálogo de métricas en `README.md` y la sección `Collected Business Metrics` del artifact generado por `.github/workflows/deploy.yml`.
+## Project Structure
 
-## Convenciones técnicas
+- `src/order-api/`: Lambda handlers for `POST /orders` and `GET /orders/{orderId}`.
+- `src/order-processor/`: EventBridge consumer that advances the order lifecycle and invokes the payment simulator.
+- `src/payment-simulator/`: Isolated Lambda used to simulate payment outcomes for workshop scenarios.
+- `src/shared/`: Shared utilities for logging, validation, responses, OpenTelemetry bootstrap, and observability.
+- `infra/terraform/`: Canonical infrastructure definition for AWS resources, observability resources, and deployment configuration.
+- `scripts/`: Packaging, smoke-test, and local helper scripts.
+- `.github/workflows/`: CI, deploy, and teardown automation.
+- `README.md`: Primary operational reference for humans and agents. Do not create parallel transient docs unless explicitly requested.
 
-- Runtime: Node.js 20.x
-- IaC: Terraform
-- SDK: AWS SDK v3
-- Módulos JavaScript en CommonJS
-- Scripts shell en `scripts/`
-- Utilidades compartidas en `src/shared/`
+## Architecture Guardrails
 
-## Comandos preferidos
+- Keep the MVP simple. Do not introduce Step Functions, SQS, Event Sourcing, or extra architectural patterns unless explicitly requested.
+- Preserve the current architecture based on API Gateway, Lambda, DynamoDB, EventBridge, and a separate payment-simulator Lambda.
+- Favor small, readable changes that are easy to demo in a workshop.
+- If adding new AWS components, document the reason and the workshop impact in `@README.md`.
+- Do not couple business logic directly to a specific observability vendor.
 
-- Instalar dependencias: `npm install`
-- Verificación rápida: `npm run check`
-- Empaquetar Lambdas: `bash scripts/prepare-lambda-package.sh`
-- Validar Terraform: `terraform -chdir=infra/terraform init -backend=false && terraform -chdir=infra/terraform validate`
-- Formatear Terraform: `terraform -chdir=infra/terraform fmt -recursive`
-- Desplegar localmente: `terraform -chdir=infra/terraform apply`
+## Development Commands
 
-## CI/CD
+- Install dependencies: `npm install`
+- Fast syntax check: `npm run check`
+- Package Lambdas: `bash scripts/prepare-lambda-package.sh`
+- Local OTEL runtime check: `npm run test:otel-local`
+- Smoke test helper: `npm run test:smoke`
+- Terraform format check: `terraform -chdir=infra/terraform fmt -check -recursive`
+- Terraform validate: `terraform -chdir=infra/terraform init -backend=false && terraform -chdir=infra/terraform validate`
+- Preferred quick verification before finishing a change: `npm run check` and any directly affected Terraform or script validation
 
-- La validación continua vive en `.github/workflows/ci.yml`
-- El despliegue continuo vive en `.github/workflows/deploy.yml`
-- La destrucción manual vive en `.github/workflows/teardown.yml`
-- El deploy en GitHub Actions usa `AWS_ACCESS_KEY_ID` y `AWS_SECRET_ACCESS_KEY` desde GitHub Secrets
-- Las variables de despliegue esperadas son `AWS_REGION`, `STACK_NAME`, `RESOURCE_PREFIX`, `PAYMENT_FAILURE_MODE`, `TF_STATE_BUCKET` y `TF_STATE_KEY`
+## Testing Instructions
 
-## Guía para cambios futuros
+- CI lives in `@.github/workflows/ci.yml`; align local verification with that workflow before finishing substantial changes.
+- At minimum, run the checks needed for the area you touched.
+- For JavaScript changes, run `npm run check`.
+- For packaging-impacting changes, run `bash scripts/prepare-lambda-package.sh`.
+- For Terraform changes, run `terraform -chdir=infra/terraform fmt -check -recursive` and `terraform -chdir=infra/terraform validate`.
+- When changing OpenTelemetry bootstrap or export behavior, run `npm run test:otel-local`.
+- If you change behavior, add or update tests or validation coverage when practical, even if not explicitly requested.
 
-- Si se agrega o migra observabilidad, hacerlo de forma incremental y sin romper el flujo funcional actual.
-- Priorizar estándares semánticos de OpenTelemetry cuando aplique, especialmente para HTTP, AWS SDK y dependencias.
-- Evitar que el código de negocio dependa directamente de CloudWatch EMF, X-Ray o vendors específicos; encapsular esas decisiones en la capa compartida de observabilidad.
-- Si en una iteración futura se incorpora OpenTelemetry Collector, usarlo como punto de consolidación y enrutamiento para exportar a CloudWatch y a vendors externos sin reescribir la instrumentación de la aplicación.
-- Si se cambia el modelo de despliegue o autenticación AWS, actualizar también `README.md`, `infra/terraform/*`, `scripts/prepare-lambda-package.sh` y los workflows de GitHub Actions.
-- Si se cambia la suite de observabilidad en EC2, actualizar también `README.md`, `docs/observability-deployment.md`, `docs/deployment-profile.md` y el artifact generado por `.github/workflows/deploy.yml`.
-- Si un incidente confirma una causa raíz específica, limpiar en el mismo cambio los workarounds o textos que documenten hipótesis no confirmadas como si fueran la causa real.
-- Si se agregan nuevos componentes AWS, documentar claramente el motivo y el impacto en el taller.
-- `README.md` es la referencia operativa principal del repositorio; no mantener documentos transitorios paralelos.
+## Code Style And Conventions
+
+- Runtime: Node.js 20.x.
+- Modules: CommonJS.
+- AWS SDK: v3.
+- Infrastructure as code: Terraform.
+- Shell scripts belong in `scripts/`.
+- Shared runtime helpers belong in `src/shared/`.
+- Keep logs in structured JSON.
+- Prefer explicit, easy-to-read code over clever abstractions.
+- Avoid unnecessary dependencies.
+- Preserve existing naming and file layout unless there is a clear payoff.
+
+## Observability Rules
+
+- The repo convention is `otel-first`.
+- New tracing, metrics, and correlation work must be designed around OpenTelemetry first, not around CloudWatch, X-Ray, EMF, or any vendor-specific SDK.
+- CloudWatch is the default AWS backend today, but instrumentation must remain portable to OTLP-compatible backends with minimal changes outside the export layer.
+- Centralize observability initialization, metric names, common attributes, correlation, and export strategy in `src/shared/observability.js` whenever possible.
+- Preserve clear extension points for future OpenTelemetry SDK, OTLP, and Collector evolution without breaking the current functional flow.
+- Prefer semantic conventions from OpenTelemetry for HTTP, AWS SDK, and dependency instrumentation when applicable.
+- Avoid making business code depend directly on CloudWatch EMF, X-Ray, or vendor APIs.
+- If `OTEL_EXPORT_STRATEGY=collector` or the EC2 observability suite behavior changes, also update `@README.md`, `@docs/observability-deployment.md`, `@docs/deployment-profile.md`, and any deploy artifact text produced by `@.github/workflows/deploy.yml`.
+
+## Metrics And Documentation Sync
+
+- If you add, remove, or rename an application metric, update the metric catalog in `@README.md` in the same change.
+- Update the `Collected Business Metrics` section emitted by `@.github/workflows/deploy.yml` in the same change whenever metric names or meanings change.
+- If deployment variables, authentication flow, or packaging behavior changes, update the matching Terraform, scripts, workflows, and `@README.md` together.
+
+## Security And Deployment Considerations
+
+- Never commit secrets, credentials, or private tokens.
+- Prefer environment variables and GitHub Secrets for sensitive configuration.
+- Respect the existing AWS deployment model unless the user explicitly asks to change it.
+- If you change AWS authentication or deployment behavior, update `@README.md`, `@infra/terraform/*`, `@scripts/prepare-lambda-package.sh`, and the relevant GitHub Actions workflows in the same change.
+- If you change observability infrastructure on EC2, update `@README.md`, `@docs/observability-deployment.md`, `@docs/deployment-profile.md`, and deploy workflow artifacts together.
+
+## Change Management
+
+- Keep changes incremental and workshop-friendly.
+- Clean up confirmed temporary workarounds or stale hypothesis text in the same change once the real root cause is known.
+- Do not leave conflicting operational guidance spread across multiple files.
+- `README.md` remains the main operational source of truth.
+
+## Pull Request And Commit Expectations
+
+- Before considering work complete, run the relevant local checks for the files you changed.
+- Keep commits and PRs scoped to one coherent change.
+- In summaries and PR descriptions, call out any required follow-up doc or workflow updates.
+- If verification was partial, say exactly what was not run.
