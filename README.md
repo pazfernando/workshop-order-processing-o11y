@@ -6,7 +6,7 @@ Este repositorio contiene la aplicación `workshop-order-processing`. La platafo
 
 - la aplicación
 - su contrato de observabilidad
-- la integración con el IDP que resuelve el `providerRef` de observabilidad
+- la integración con el workflow reusable del IDP
 
 ## Arquitectura
 
@@ -20,7 +20,7 @@ Este repositorio contiene la aplicación `workshop-order-processing`. La platafo
 
 ## Observabilidad en este repo
 
-Este repo conserva la responsabilidad de declarar su necesidad de observabilidad al IDP, pero no implementa ya el runtime de observabilidad.
+Este repo conserva la responsabilidad de declarar su necesidad de observabilidad al IDP y de consumir los bindings generados por la plataforma durante el deploy.
 
 Se mantiene:
 
@@ -28,14 +28,14 @@ Se mantiene:
 - propagación de `correlationId` entre API, EventBridge, `order-processor` y `payment-simulator`
 - respuestas API con `x-correlation-id`
 - contrato versionado para el IDP externo
-- resolución del `providerRef` de observabilidad durante el deploy
+- integración de CD con el reusable workflow del IDP
+- consumo de `bindings.json` para inyectar configuración de runtime en Terraform
 
 No se mantiene aquí:
 
-- OpenTelemetry embebido en la aplicación
-- exportadores OTLP, ADOT Lambda layer o compatibilidad EMF
-- X-Ray o Application Signals configurados desde este repo
+- la lógica de validación, planning y generación de bindings duplicada localmente
 - collectors compartidos, dashboards, alertas o backends de observabilidad
+- la provisión de la managed suite dentro de este repositorio
 
 ## Contrato e integración con IDP
 
@@ -45,10 +45,10 @@ No se mantiene aquí:
 El flujo esperado es:
 
 1. este repo versiona su contrato de observabilidad
-2. el workflow de CD envía ese contrato al IDP externo junto con los inputs de provisión requeridos por plataforma
-3. el IDP externo valida ese contrato
-4. el IDP devuelve un `providerRef` utilizable para el workload
-5. este repo despliega la app y publica ese `providerRef` como referencia de integración
+2. el pipeline de CD llama al reusable workflow del IDP
+3. el workflow del IDP valida el contrato, construye el plan y genera `bindings.json`
+4. si se pide, el workflow del IDP despliega primero la managed suite y reutiliza su OTLP endpoint
+5. este repo despliega la app consumiendo esos bindings en Terraform
 
 ## Desarrollo
 
@@ -75,10 +75,10 @@ Workflows:
 - [deploy.yml](/Users/pazfernando/Documents/projects/windsurf/workshop-order-processing/.github/workflows/deploy.yml)
 - [teardown.yml](/Users/pazfernando/Documents/projects/windsurf/workshop-order-processing/.github/workflows/teardown.yml)
 
-`deploy.yml` ya no provisiona observabilidad compartida. Despliega la aplicación usando:
+`deploy.yml` consume la plataforma de observabilidad usando:
 
 - el contrato versionado en este repo
-- una llamada previa al IDP para provisionar observabilidad y resolver el `providerRef`
-- inputs de `workflow_dispatch` para tenant, environment, profile y overrides específicos del IDP
-- el secreto `OBSERVABILITY_IDP_TOKEN` cuando el IDP requiere autenticación
-- Terraform solo para recursos propios de la aplicación
+- un job reusable hacia `pazfernando/workshop-idp-o11y/.github/workflows/contract-consumer.yml@main`
+- inputs de `workflow_dispatch` para instrumentation mode, endpoints OTLP y managed suite
+- `bindings.json` generado por la plataforma y persistido en `build/observability/`
+- Terraform para recursos propios de la aplicación y para inyectar los bindings resultantes en las Lambdas

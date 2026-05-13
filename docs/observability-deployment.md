@@ -7,8 +7,8 @@ Guía de consumo de observabilidad para este repo.
 `workshop-order-processing` ya no provisiona la plataforma de observabilidad. Este repo solo:
 
 - versiona su contrato de observabilidad
-- resuelve un `providerRef` desde el IDP externo
-- despliega la aplicación sin runtime OTEL embebido
+- consume el reusable workflow del IDP
+- despliega la aplicación usando los bindings generados por la plataforma
 
 La plataforma externa es responsable de toda la implementación observability:
 
@@ -26,7 +26,7 @@ Contrato activo:
 
 Ese contrato describe la intención del workload. No define cómo se materializa la plataforma ni obliga a que la aplicación embeba SDKs de observabilidad.
 
-En este repo no se consumen ya bindings OTEL de runtime, layers ADOT ni endpoints OTLP.
+En este repo el contrato se entrega al workflow reusable del IDP, y el deploy consume su `bindings.json` para propagar variables de entorno, layers y managed policies a las Lambdas.
 
 ## Validación local
 
@@ -42,41 +42,69 @@ terraform -chdir=infra/terraform validate
 
 El workflow [deploy.yml](/Users/pazfernando/Documents/projects/windsurf/workshop-order-processing/.github/workflows/deploy.yml):
 
-- valida que exista el contrato del consumidor
-- puede pedir al IDP la provisión de observabilidad antes del deploy
-- envía el contrato versionado y un bloque de inputs operativos al IDP
-- resuelve el `providerRef` desde la respuesta del IDP
+- llama al reusable workflow `pazfernando/workshop-idp-o11y/.github/workflows/contract-consumer.yml@main`
+- delega en la plataforma la validación del contrato, el plan y la generación de bindings
+- puede pedir a la plataforma que despliegue primero la managed suite
+- persiste `validation.txt`, `plan.json` y `bindings.json` en `build/observability/`
+- transforma `bindings.json` en un archivo `terraform.tfvars.json`
 - despliega la app con Terraform
 - no crea plataforma de observabilidad compartida
 
-## Inputs de CD para el IDP
+## Inputs de CD para el reusable workflow
 
-Cuando `idp_provision_observability=true`, el workflow usa estos inputs:
+Los principales inputs expuestos por este repo al `workflow_dispatch` son:
 
 | Input | Uso |
 | :--- | :--- |
-| `idp_api_base_url` | URL base del IDP |
-| `idp_api_path` | Path HTTP del endpoint de provisión |
-| `idp_tenant` | Tenant o cuenta lógica en la plataforma |
-| `idp_environment` | Ambiente lógico pedido al IDP |
-| `idp_capability_profile` | Perfil o bundle de capacidades del IDP |
-| `idp_wait_for_ready` | Espera activa hasta recibir bindings listos |
-| `idp_timeout_seconds` | Timeout de espera para provisión asíncrona |
-| `idp_request_overrides_json` | JSON libre para opciones adicionales del IDP |
+| `observability_instrumentation_mode` | `code` o `adot_layer` |
+| `observability_collector_endpoint` | Endpoint base OTLP para collector mode |
+| `observability_direct_endpoint` | Endpoint base OTLP para direct mode |
+| `observability_emf_compatibility_mode` | Compatibilidad EMF en bindings AWS Lambda |
+| `deploy_managed_suite` | Si la plataforma debe desplegar primero su managed suite |
+| `managed_suite_name` | Nombre base de la managed suite |
+| `managed_suite_grafana_allowed_cidrs` | CIDRs para acceso a Grafana |
+| `managed_suite_otlp_allowed_cidrs` | CIDRs para acceso a OTLP |
+| `managed_suite_ssh_allowed_cidrs` | CIDRs para acceso SSH |
 
-Autenticación:
+Credenciales:
 
-- si el IDP requiere token bearer, define el secret `OBSERVABILITY_IDP_TOKEN`
-- para ejecuciones por `push`, puedes activar este modo con la variable de entorno/repo `IDP_PROVISION_OBSERVABILITY=true`
+- el reusable workflow usa `secrets: inherit`
+- si `deploy_managed_suite=true`, deben existir `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y opcionalmente `AWS_SESSION_TOKEN`
+- opcionalmente `OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD`
 
-## Forma esperada de la respuesta del IDP
+## Outputs consumidos downstream
 
-Este repo espera una respuesta JSON con un `providerRef` utilizable, por ejemplo:
+El job `deploy` consume estos outputs del reusable workflow:
+
+- `validation_message`
+- `plan_json`
+- `bindings_json`
+- `managed_suite_enabled`
+- `managed_suite_grafana_url`
+- `managed_suite_otlp_http_endpoint`
+- `effective_collector_endpoint`
+
+## Forma esperada de `bindings.json`
+
+Este repo espera el formato emitido por `o11yctl bindings aws-lambda`, incluyendo:
 
 ```json
 {
-  "providerRef": "obs/aws-dev/order-processing"
+  "instrumentation": {
+    "mode": "code",
+    "exportStrategy": "collector",
+    "otlpAuthenticationMode": "collector-managed",
+    "emfCompatibilityMode": false
+  },
+  "environment": {
+    "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector.internal:4318"
+  },
+  "layers": [],
+  "managedPolicies": [],
+  "outputs": {
+    "otlpBaseEndpoint": "http://collector.internal:4318"
+  }
 }
 ```
 
-También se aceptan variantes equivalentes bajo `provider.ref` o `metadata.providerRef`.
+Terraform consume ese payload completo mediante `otel_bindings_json` y desde ahí deriva environment variables, Lambda layers y managed policy attachments para todas las funciones del workload.

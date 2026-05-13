@@ -47,6 +47,29 @@ locals {
   }
   event_bus_arn          = "arn:${data.aws_partition.current.partition}:events:${var.aws_region}:${data.aws_caller_identity.current.account_id}:event-bus/default"
   deployment_environment = local.normalized_resource_prefix != "" ? local.normalized_resource_prefix : "local"
+  otel_bindings          = trim(var.otel_bindings_json, " ") != "" ? try(jsondecode(var.otel_bindings_json), {}) : {}
+  otel_environment       = try(local.otel_bindings.environment, {})
+  otel_layers            = try(local.otel_bindings.layers, [])
+  otel_managed_policies  = try(local.otel_bindings.managedPolicies, [])
+  otel_instrumentation   = try(local.otel_bindings.instrumentation, {})
+  otel_outputs           = try(local.otel_bindings.outputs, {})
+  lambda_role_names = {
+    create_order      = aws_iam_role.create_order.name
+    get_order         = aws_iam_role.get_order.name
+    payment_simulator = aws_iam_role.payment_simulator.name
+    order_processor   = aws_iam_role.order_processor.name
+  }
+  otel_policy_attachments = {
+    for attachment in flatten([
+      for role_name in values(local.lambda_role_names) : [
+        for policy_arn in local.otel_managed_policies : {
+          key        = "${role_name}|${policy_arn}"
+          role_name  = role_name
+          policy_arn = policy_arn
+        }
+      ]
+    ]) : attachment.key => attachment
+  }
 }
 
 resource "aws_dynamodb_table" "orders" {
@@ -137,6 +160,13 @@ resource "aws_iam_role_policy_attachment" "payment_simulator_logs" {
 resource "aws_iam_role_policy_attachment" "order_processor_logs" {
   role       = aws_iam_role.order_processor.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "observability_managed" {
+  for_each = local.otel_policy_attachments
+
+  role       = each.value.role_name
+  policy_arn = each.value.policy_arn
 }
 
 resource "aws_cloudwatch_log_group" "api_access" {
@@ -236,9 +266,12 @@ resource "aws_lambda_function" "create_order" {
         EVENT_BUS_NAME    = "default"
         LOG_LEVEL         = "INFO"
         SERVICE_NAME      = "order-api"
-      }
+      },
+      local.otel_environment
     )
   }
+
+  layers = local.otel_layers
 
   depends_on = [
     aws_cloudwatch_log_group.create_order,
@@ -263,9 +296,12 @@ resource "aws_lambda_function" "get_order" {
         EVENT_BUS_NAME    = "default"
         LOG_LEVEL         = "INFO"
         SERVICE_NAME      = "order-api"
-      }
+      },
+      local.otel_environment
     )
   }
+
+  layers = local.otel_layers
 
   depends_on = [
     aws_cloudwatch_log_group.get_order,
@@ -291,9 +327,12 @@ resource "aws_lambda_function" "payment_simulator" {
         LOG_LEVEL            = "INFO"
         PAYMENT_FAILURE_MODE = var.payment_failure_mode
         SERVICE_NAME         = "payment-simulator"
-      }
+      },
+      local.otel_environment
     )
   }
+
+  layers = local.otel_layers
 
   depends_on = [
     aws_cloudwatch_log_group.payment_simulator,
@@ -319,9 +358,12 @@ resource "aws_lambda_function" "order_processor" {
         LOG_LEVEL                       = "INFO"
         PAYMENT_SIMULATOR_FUNCTION_NAME = aws_lambda_function.payment_simulator.function_name
         SERVICE_NAME                    = "order-processor"
-      }
+      },
+      local.otel_environment
     )
   }
+
+  layers = local.otel_layers
 
   depends_on = [
     aws_cloudwatch_log_group.order_processor,

@@ -38,3 +38,9 @@ variable "log_retention_in_days" {
   type        = number
   default     = 7
 }
+
+variable "otel_bindings_json" {
+  description = "Raw AWS Lambda bindings JSON emitted by the observability platform reusable workflow."
+  type        = string
+  default     = ""
+}
