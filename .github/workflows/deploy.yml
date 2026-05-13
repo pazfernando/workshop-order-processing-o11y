@@ -317,7 +317,18 @@ jobs:
             fi
 
             echo "Importing $ADDRESS from $IMPORT_ID"
-            terraform -chdir=infra/terraform import "$ADDRESS" "$IMPORT_ID"
+            if OUTPUT="$(terraform -chdir=infra/terraform import "$ADDRESS" "$IMPORT_ID" 2>&1)"; then
+              printf '%s\n' "$OUTPUT"
+              return 0
+            fi
+
+            printf '%s\n' "$OUTPUT"
+            if printf '%s\n' "$OUTPUT" | grep -Eq "Cannot import non-existent remote object|Cannot import, resource does not exist|non-existent remote object"; then
+              echo "Remote object for $ADDRESS was not found; leaving it unmanaged for this run"
+              return 0
+            fi
+
+            return 1
           }
 
           EFFECTIVE_STACK_NAME="$STACK_NAME"
@@ -346,9 +357,7 @@ jobs:
           ORDER_PROCESSOR_POLICY_NAME="${ORDER_PROCESSOR_FUNCTION_NAME}-policy"
           LAMBDA_BASIC_EXECUTION_POLICY_ARN="arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 
-          if aws dynamodb describe-table --table-name "$ORDERS_TABLE_NAME" >/dev/null 2>&1; then
-            tf_import_if_missing "aws_dynamodb_table.orders" "$ORDERS_TABLE_NAME"
-          fi
+          tf_import_if_missing "aws_dynamodb_table.orders" "$ORDERS_TABLE_NAME"
 
           for ITEM in \
             "aws_iam_role.create_order:${CREATE_ORDER_ROLE_NAME}" \
@@ -359,9 +368,7 @@ jobs:
             ADDRESS="${ITEM%%:*}"
             ROLE_NAME="${ITEM#*:}"
 
-            if aws iam get-role --role-name "$ROLE_NAME" >/dev/null 2>&1; then
-              tf_import_if_missing "$ADDRESS" "$ROLE_NAME"
-            fi
+            tf_import_if_missing "$ADDRESS" "$ROLE_NAME"
           done
 
           for ITEM in \
@@ -374,9 +381,7 @@ jobs:
             ROLE_NAME="${REST%%:*}"
             POLICY_NAME="${REST#*:}"
 
-            if aws iam get-role-policy --role-name "$ROLE_NAME" --policy-name "$POLICY_NAME" >/dev/null 2>&1; then
-              tf_import_if_missing "$ADDRESS" "${ROLE_NAME}:${POLICY_NAME}"
-            fi
+            tf_import_if_missing "$ADDRESS" "${ROLE_NAME}:${POLICY_NAME}"
           done
 
           for ITEM in \
@@ -388,9 +393,7 @@ jobs:
             ADDRESS="${ITEM%%:*}"
             ROLE_NAME="${ITEM#*:}"
 
-            if aws iam list-attached-role-policies --role-name "$ROLE_NAME" --query "AttachedPolicies[?PolicyArn=='${LAMBDA_BASIC_EXECUTION_POLICY_ARN}'].PolicyArn | [0]" --output text 2>/dev/null | grep -q "$LAMBDA_BASIC_EXECUTION_POLICY_ARN"; then
-              tf_import_if_missing "$ADDRESS" "${ROLE_NAME}/${LAMBDA_BASIC_EXECUTION_POLICY_ARN}"
-            fi
+            tf_import_if_missing "$ADDRESS" "${ROLE_NAME}/${LAMBDA_BASIC_EXECUTION_POLICY_ARN}"
           done
 
           for ITEM in \
@@ -402,9 +405,7 @@ jobs:
             ADDRESS="${ITEM%%:*}"
             FUNCTION_NAME="${ITEM#*:}"
 
-            if aws lambda get-function --function-name "$FUNCTION_NAME" >/dev/null 2>&1; then
-              tf_import_if_missing "$ADDRESS" "$FUNCTION_NAME"
-            fi
+            tf_import_if_missing "$ADDRESS" "$FUNCTION_NAME"
           done
 
           for ITEM in \
@@ -417,9 +418,7 @@ jobs:
             ADDRESS="${ITEM%%:*}"
             LOG_GROUP_NAME="${ITEM#*:}"
 
-            if aws logs describe-log-groups --log-group-name-prefix "$LOG_GROUP_NAME" --query "logGroups[?logGroupName=='${LOG_GROUP_NAME}'].logGroupName | [0]" --output text 2>/dev/null | grep -q "$LOG_GROUP_NAME"; then
-              tf_import_if_missing "$ADDRESS" "$LOG_GROUP_NAME"
-            fi
+            tf_import_if_missing "$ADDRESS" "$LOG_GROUP_NAME"
           done
 
           API_ID="$(aws apigatewayv2 get-apis --query "Items[?Name=='${API_NAME}'].ApiId | [0]" --output text)"
@@ -472,18 +471,56 @@ jobs:
             tf_import_if_missing "aws_cloudwatch_event_target.order_processor" "${EVENT_RULE_NAME}/OrderProcessorFunction"
           fi
 
+          echo "Terraform state after reconciliation:"
+          terraform -chdir=infra/terraform state list || true
+
+      - name: Preview reconciled Terraform state
+        run: |
+          mkdir -p build/artifacts/terraform
+          terraform -chdir=infra/terraform plan \
+            -no-color \
+            -refresh-only \
+            -lock=false \
+            -var-file="${GITHUB_WORKSPACE}/build/observability/terraform.tfvars.json" \
+            -var="aws_region=${AWS_REGION}" \
+            -var="stack_name=${STACK_NAME}" \
+            -var="resource_prefix=${RESOURCE_PREFIX}" \
+            -var="payment_failure_mode=${PAYMENT_FAILURE_MODE}" \
+            -var="log_retention_in_days=${LOG_RETENTION_IN_DAYS}" \
+            2>&1 | tee build/artifacts/terraform/refresh-only-plan.log
+
       - name: Deploy stack
         run: |
+          mkdir -p build/artifacts/terraform
+          set +e
           terraform -chdir=infra/terraform apply \
+            -no-color \
             -auto-approve \
             -var-file="${GITHUB_WORKSPACE}/build/observability/terraform.tfvars.json" \
             -var="aws_region=${AWS_REGION}" \
             -var="stack_name=${STACK_NAME}" \
             -var="resource_prefix=${RESOURCE_PREFIX}" \
             -var="payment_failure_mode=${PAYMENT_FAILURE_MODE}" \
-            -var="log_retention_in_days=${LOG_RETENTION_IN_DAYS}"
+            -var="log_retention_in_days=${LOG_RETENTION_IN_DAYS}" \
+            2>&1 | tee build/artifacts/terraform/apply.log
+          TERRAFORM_APPLY_EXIT_CODE="${PIPESTATUS[0]}"
+          echo "Terraform apply exit code: ${TERRAFORM_APPLY_EXIT_CODE}"
+          if [ "${TERRAFORM_APPLY_EXIT_CODE}" -ne 0 ]; then
+            echo "Last 200 lines from terraform apply:"
+            tail -n 200 build/artifacts/terraform/apply.log || true
+          fi
+          exit "${TERRAFORM_APPLY_EXIT_CODE}"
+
+      - name: Upload Terraform diagnostics artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-diagnostics-${{ env.ENVIRONMENT_NAME }}-${{ github.run_id }}
+          path: build/artifacts/terraform/
+          if-no-files-found: warn
 
       - name: Build deployment profile artifact
+        if: success()
         run: |
           mkdir -p build/artifacts/observability
 
@@ -558,6 +595,7 @@ jobs:
           EOF
 
       - name: Upload deployment profile artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: deployment-profile-${{ env.ENVIRONMENT_NAME }}-${{ github.run_id }}
