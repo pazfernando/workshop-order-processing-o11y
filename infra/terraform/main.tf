@@ -47,7 +47,7 @@ locals {
   }
   event_bus_arn          = "arn:${data.aws_partition.current.partition}:events:${var.aws_region}:${data.aws_caller_identity.current.account_id}:event-bus/default"
   deployment_environment = local.normalized_resource_prefix != "" ? local.normalized_resource_prefix : "local"
-  otel_bindings          = trim(var.otel_bindings_json, " ") != "" ? try(jsondecode(var.otel_bindings_json), {}) : {}
+  otel_bindings          = try(jsondecode(var.otel_bindings_json), null)
   otel_environment       = try(local.otel_bindings.environment, {})
   otel_layers            = try(local.otel_bindings.layers, [])
   otel_managed_policies  = try(local.otel_bindings.managedPolicies, [])
