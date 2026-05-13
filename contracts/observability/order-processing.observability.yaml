@@ -25,181 +25,23 @@ spec:
     target: aws
     region: us-east-1
   telemetry:
-    openTelemetry:
-      enabled: true
-      semanticConventions: opentelemetry
-      propagators:
-        - tracecontext
-        - baggage
-        - xray
-      sampling:
-        strategy: parentbased_always_on
-    resourceAttributes:
-      service.name: order-processing
-      service.namespace: workshop
-      service.version: "1.0.0"
-      deployment.environment: dev
-      cloud.provider: aws
-      faas.name: order-processing
     signals:
       traces:
-        enabled: true
-        ingestion: collector
-        backendClass: traces-standard
+        enabled: false
       metrics:
-        enabled: true
-        ingestion: collector
-        backendClass: metrics-standard
-        catalog:
-          - name: OrdersCreated
-            type: counter
-            unit: "{order}"
-            description: Successful order creations.
-            dimensions:
-              - service
-              - operation
-          - name: CreateOrderLatencyMs
-            type: histogram
-            unit: ms
-            description: Latency of POST /orders.
-            dimensions:
-              - service
-              - operation
-          - name: CreateOrderErrors
-            type: counter
-            unit: "{error}"
-            description: Errors while creating orders.
-            dimensions:
-              - service
-              - operation
-          - name: OrdersRead
-            type: counter
-            unit: "{order}"
-            description: Successful order reads.
-            dimensions:
-              - service
-              - operation
-          - name: OrdersNotFound
-            type: counter
-            unit: "{order}"
-            description: Read attempts for missing orders.
-            dimensions:
-              - service
-              - operation
-          - name: GetOrderLatencyMs
-            type: histogram
-            unit: ms
-            description: Latency of GET /orders/{orderId}.
-            dimensions:
-              - service
-              - operation
-          - name: GetOrderErrors
-            type: counter
-            unit: "{error}"
-            description: Errors in GET /orders/{orderId}.
-            dimensions:
-              - service
-              - operation
-          - name: OrdersProcessed
-            type: counter
-            unit: "{order}"
-            description: Processed order events with terminal outcome.
-            dimensions:
-              - service
-              - operation
-          - name: PaymentInvocationLatencyMs
-            type: histogram
-            unit: ms
-            description: Latency of the payment simulator invocation.
-            dimensions:
-              - service
-              - operation
-          - name: OrderProcessorIgnoredEvents
-            type: counter
-            unit: "{event}"
-            description: Ignored events due to invalid payload or shape.
-            dimensions:
-              - service
-              - operation
-          - name: OrderProcessorDuplicateEvents
-            type: counter
-            unit: "{event}"
-            description: Duplicate or already-terminal order events.
-            dimensions:
-              - service
-              - operation
-          - name: OrderProcessorErrors
-            type: counter
-            unit: "{error}"
-            description: Order processor errors.
-            dimensions:
-              - service
-              - operation
-          - name: PaymentsSimulated
-            type: counter
-            unit: "{payment}"
-            description: Payment simulations with terminal outcome.
-            dimensions:
-              - service
-              - operation
-          - name: PaymentSimulationLatencyMs
-            type: histogram
-            unit: ms
-            description: Latency of the payment simulator.
-            dimensions:
-              - service
-              - operation
-          - name: PaymentSimulationErrors
-            type: counter
-            unit: "{error}"
-            description: Payment simulator errors.
-            dimensions:
-              - service
-              - operation
+        enabled: false
       logs:
         enabled: true
-        ingestion: collector
-        backendClass: logs-standard
         format: json
   capabilities:
     dashboards:
-      enabled: true
-      preset: serverless-api
+      enabled: false
     alerts:
-      enabled: true
-      rules:
-        - name: api-5xx-rate
-          summary: API Gateway 5xx responses detected.
-          severity: high
-          condition: sum(api_5xx) >= 1
-          for: 1m
-        - name: order-processor-errors
-          summary: Order processor is emitting error metrics.
-          severity: high
-          condition: sum(OrderProcessorErrors) >= 1
-          for: 1m
-        - name: payment-simulation-latency
-          summary: Payment simulator average latency is above threshold.
-          severity: medium
-          condition: avg(PaymentSimulationLatencyMs) > 3000
-          for: 5m
+      enabled: false
     slos:
-      enabled: true
-      objectives:
-        - name: create-order-availability
-          description: Successful order creation responses over total create requests.
-          indicator: availability
-          target: 99.9
-          window: 30d
-        - name: get-order-availability
-          description: Successful order query responses over total read requests.
-          indicator: availability
-          target: 99.9
-          window: 30d
+      enabled: false
     dataManagement:
       retention:
-        tracesDays: 7
-        metricsDays: 30
         logsDays: 7
       dataClassification: internal
 status:

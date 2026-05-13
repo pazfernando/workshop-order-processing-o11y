@@ -47,99 +47,6 @@ locals {
   }
   event_bus_arn          = "arn:${data.aws_partition.current.partition}:events:${var.aws_region}:${data.aws_caller_identity.current.account_id}:event-bus/default"
   deployment_environment = local.normalized_resource_prefix != "" ? local.normalized_resource_prefix : "local"
-  adot_supported_regions = toset([
-    "ap-northeast-1",
-    "ap-northeast-2",
-    "ap-south-1",
-    "ap-southeast-1",
-    "ap-southeast-2",
-    "ca-central-1",
-    "eu-central-1",
-    "eu-north-1",
-    "eu-west-1",
-    "eu-west-2",
-    "eu-west-3",
-    "sa-east-1",
-    "us-east-1",
-    "us-east-2",
-    "us-west-1",
-    "us-west-2"
-  ])
-  adot_layer_architecture                   = "amd64"
-  inferred_adot_lambda_layer_arn            = contains(local.adot_supported_regions, var.aws_region) ? "arn:aws:lambda:${var.aws_region}:901920570463:layer:aws-otel-nodejs-${local.adot_layer_architecture}-ver-1-30-2:1" : ""
-  effective_adot_lambda_layer_arn           = trim(var.adot_lambda_layer_arn, " ") != "" ? trim(var.adot_lambda_layer_arn, " ") : local.inferred_adot_lambda_layer_arn
-  direct_otlp_base_endpoint                 = trim(var.otel_exporter_otlp_endpoint, " ")
-  direct_otlp_traces_endpoint               = trim(var.otel_exporter_otlp_traces_endpoint, " ")
-  direct_otlp_metrics_endpoint              = trim(var.otel_exporter_otlp_metrics_endpoint, " ")
-  collector_otlp_base_endpoint              = trim(var.otel_collector_endpoint, " ")
-  collector_otlp_traces_endpoint            = trim(var.otel_collector_traces_endpoint, " ")
-  collector_otlp_metrics_endpoint           = trim(var.otel_collector_metrics_endpoint, " ")
-  inferred_cloudwatch_traces_otlp_endpoint  = "https://xray.${var.aws_region}.amazonaws.com/v1/traces"
-  inferred_cloudwatch_metrics_otlp_endpoint = "https://monitoring.${var.aws_region}.amazonaws.com/v1/metrics"
-  infer_cloudwatch_direct_endpoints = (
-    var.otel_mode == "adot_layer" &&
-    var.otel_export_strategy == "direct" &&
-    local.direct_otlp_base_endpoint == "" &&
-    local.direct_otlp_traces_endpoint == "" &&
-    local.direct_otlp_metrics_endpoint == ""
-  )
-  direct_targets_cloudwatch = (
-    length(regexall("^https://(monitoring|xray)\\.[^.]+\\.amazonaws\\.com/v1/(metrics|traces)$", local.direct_otlp_base_endpoint)) > 0 ||
-    length(regexall("^https://xray\\.[^.]+\\.amazonaws\\.com/v1/traces$", local.direct_otlp_traces_endpoint)) > 0 ||
-    length(regexall("^https://monitoring\\.[^.]+\\.amazonaws\\.com/v1/metrics$", local.direct_otlp_metrics_endpoint)) > 0 ||
-    local.infer_cloudwatch_direct_endpoints
-  )
-  effective_otlp_endpoint = var.otel_export_strategy == "collector" ? (
-    local.collector_otlp_base_endpoint != "" ? local.collector_otlp_base_endpoint : ""
-    ) : (
-    local.direct_otlp_base_endpoint != "" ? local.direct_otlp_base_endpoint : (
-      local.infer_cloudwatch_direct_endpoints ? "cloudwatch-managed-per-signal" : ""
-    )
-  )
-  effective_otlp_traces_endpoint = var.otel_export_strategy == "collector" ? (
-    local.collector_otlp_traces_endpoint != "" ? local.collector_otlp_traces_endpoint : ""
-    ) : (
-    local.direct_otlp_traces_endpoint != "" ? local.direct_otlp_traces_endpoint : (
-      local.direct_otlp_base_endpoint != "" ? "" : (
-        local.infer_cloudwatch_direct_endpoints ? local.inferred_cloudwatch_traces_otlp_endpoint : ""
-      )
-    )
-  )
-  effective_otlp_metrics_endpoint = var.otel_export_strategy == "collector" ? (
-    local.collector_otlp_metrics_endpoint != "" ? local.collector_otlp_metrics_endpoint : ""
-    ) : (
-    local.direct_otlp_metrics_endpoint != "" ? local.direct_otlp_metrics_endpoint : (
-      local.direct_otlp_base_endpoint != "" ? "" : (
-        local.infer_cloudwatch_direct_endpoints ? local.inferred_cloudwatch_metrics_otlp_endpoint : ""
-      )
-    )
-  )
-  otlp_export_status = local.effective_otlp_endpoint != "" || local.effective_otlp_traces_endpoint != "" || local.effective_otlp_metrics_endpoint != "" ? "active" : "inactive"
-  effective_otlp_authentication_mode = var.otel_export_strategy == "collector" ? "collector-managed" : (
-    local.direct_targets_cloudwatch ? "sigv4" : (
-      local.otlp_export_status == "active" ? "backend-defined" : "inactive"
-    )
-  )
-  effective_lambda_exec_wrapper           = var.otel_mode == "adot_layer" ? "/opt/otel-handler" : ""
-  application_signals_role_policy_enabled = var.otel_mode == "adot_layer"
-  otel_common_env = {
-    OBSERVABILITY_OTEL_ENABLED           = var.otel_mode == "code" ? "true" : "false"
-    OBSERVABILITY_EMF_COMPATIBILITY_MODE = var.observability_emf_compatibility_mode ? "true" : "false"
-    OTEL_EXPORTER_OTLP_ENDPOINT          = local.effective_otlp_endpoint
-    OTEL_EXPORTER_OTLP_TRACES_ENDPOINT   = local.effective_otlp_traces_endpoint
-    OTEL_EXPORTER_OTLP_METRICS_ENDPOINT  = local.effective_otlp_metrics_endpoint
-    OTEL_METRIC_EXPORT_INTERVAL_MS       = tostring(var.otel_metric_export_interval_ms)
-    OTEL_TRACES_EXPORTER                 = "otlp"
-    OTEL_METRICS_EXPORTER                = "otlp"
-    OTEL_EXPORTER_OTLP_PROTOCOL          = "http/protobuf"
-    OTEL_PROPAGATORS                     = "tracecontext,baggage,xray"
-    OTEL_RESOURCE_ATTRIBUTES             = "deployment.environment=${local.deployment_environment}"
-    OTEL_EXPORT_STRATEGY                 = var.otel_export_strategy
-  }
-  lambda_wrapper_env = var.otel_mode == "adot_layer" ? {
-    AWS_LAMBDA_EXEC_WRAPPER = local.effective_lambda_exec_wrapper
-  } : {}
-  adot_layer_arns = var.otel_mode == "adot_layer" ? [local.effective_adot_lambda_layer_arn] : []
 }
 
 resource "aws_dynamodb_table" "orders" {
@@ -156,13 +63,6 @@ resource "aws_dynamodb_table" "orders" {
 resource "aws_apigatewayv2_api" "orders" {
   name          = "${local.name_prefix}-http-api"
   protocol_type = "HTTP"
-
-  lifecycle {
-    precondition {
-      condition     = !(var.otel_mode == "code" && var.otel_export_strategy == "direct" && local.direct_targets_cloudwatch)
-      error_message = "CloudWatch direct OTLP endpoints require SigV4-capable ADOT runtime support. In this repo, use otel_mode='adot_layer' for CloudWatch direct OTLP or keep otel_mode='code' with a non-AWS OTLP backend."
-    }
-  }
 }
 
 resource "aws_apigatewayv2_stage" "default" {
@@ -199,17 +99,6 @@ data "aws_iam_policy_document" "lambda_assume_role" {
   }
 }
 
-data "aws_iam_policy_document" "ec2_assume_role" {
-  statement {
-    actions = ["sts:AssumeRole"]
-
-    principals {
-      type        = "Service"
-      identifiers = ["ec2.amazonaws.com"]
-    }
-  }
-}
-
 resource "aws_iam_role" "create_order" {
   name               = "${local.name_prefix}-create-order-role"
   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
@@ -235,31 +124,9 @@ resource "aws_iam_role_policy_attachment" "create_order_logs" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-resource "aws_iam_role_policy_attachment" "create_order_xray" {
-  role       = aws_iam_role.create_order.name
-  policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
-}
-
-resource "aws_iam_role_policy_attachment" "create_order_application_signals" {
-  count      = local.application_signals_role_policy_enabled ? 1 : 0
-  role       = aws_iam_role.create_order.name
-  policy_arn = "arn:aws:iam::aws:policy/CloudWatchLambdaApplicationSignalsExecutionRolePolicy"
-}
-
 resource "aws_iam_role_policy_attachment" "get_order_logs" {
   role       = aws_iam_role.get_order.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
-resource "aws_iam_role_policy_attachment" "get_order_xray" {
-  role       = aws_iam_role.get_order.name
-  policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
-}
-
-resource "aws_iam_role_policy_attachment" "get_order_application_signals" {
-  count      = local.application_signals_role_policy_enabled ? 1 : 0
-  role       = aws_iam_role.get_order.name
-  policy_arn = "arn:aws:iam::aws:policy/CloudWatchLambdaApplicationSignalsExecutionRolePolicy"
 }
 
 resource "aws_iam_role_policy_attachment" "payment_simulator_logs" {
@@ -267,31 +134,9 @@ resource "aws_iam_role_policy_attachment" "payment_simulator_logs" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-resource "aws_iam_role_policy_attachment" "payment_simulator_xray" {
-  role       = aws_iam_role.payment_simulator.name
-  policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
-}
-
-resource "aws_iam_role_policy_attachment" "payment_simulator_application_signals" {
-  count      = local.application_signals_role_policy_enabled ? 1 : 0
-  role       = aws_iam_role.payment_simulator.name
-  policy_arn = "arn:aws:iam::aws:policy/CloudWatchLambdaApplicationSignalsExecutionRolePolicy"
-}
-
 resource "aws_iam_role_policy_attachment" "order_processor_logs" {
   role       = aws_iam_role.order_processor.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
-resource "aws_iam_role_policy_attachment" "order_processor_xray" {
-  role       = aws_iam_role.order_processor.name
-  policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
-}
-
-resource "aws_iam_role_policy_attachment" "order_processor_application_signals" {
-  count      = local.application_signals_role_policy_enabled ? 1 : 0
-  role       = aws_iam_role.order_processor.name
-  policy_arn = "arn:aws:iam::aws:policy/CloudWatchLambdaApplicationSignalsExecutionRolePolicy"
 }
 
 resource "aws_cloudwatch_log_group" "api_access" {
@@ -384,43 +229,20 @@ resource "aws_lambda_function" "create_order" {
   timeout          = 10
   memory_size      = 256
 
-  tracing_config {
-    mode = "Active"
-  }
-
-  layers = local.adot_layer_arns
-
-  lifecycle {
-    precondition {
-      condition     = !(var.otel_export_strategy == "collector" && var.otel_mode == "adot_layer")
-      error_message = "In this repo, otel_export_strategy='collector' requires otel_mode='code' for custom business metrics. Use adot_layer only with direct CloudWatch OTLP."
-    }
-
-    precondition {
-      condition     = var.otel_mode != "adot_layer" || local.effective_adot_lambda_layer_arn != ""
-      error_message = "Unable to resolve an ADOT Lambda layer ARN for the selected region. Set adot_lambda_layer_arn explicitly or use a supported region."
-    }
-  }
-
   environment {
     variables = merge(
       {
         ORDERS_TABLE_NAME = aws_dynamodb_table.orders.name
         EVENT_BUS_NAME    = "default"
         LOG_LEVEL         = "INFO"
-        METRICS_NAMESPACE = var.metrics_namespace
         SERVICE_NAME      = "order-api"
-        OTEL_SERVICE_NAME = "order-api"
-      },
-      local.otel_common_env,
-      local.lambda_wrapper_env
+      }
     )
   }
 
   depends_on = [
     aws_cloudwatch_log_group.create_order,
-    aws_iam_role_policy_attachment.create_order_logs,
-    aws_iam_role_policy_attachment.create_order_xray
+    aws_iam_role_policy_attachment.create_order_logs
   ]
 }
 
@@ -434,31 +256,20 @@ resource "aws_lambda_function" "get_order" {
   timeout          = 10
   memory_size      = 256
 
-  tracing_config {
-    mode = "Active"
-  }
-
-  layers = local.adot_layer_arns
-
   environment {
     variables = merge(
       {
         ORDERS_TABLE_NAME = aws_dynamodb_table.orders.name
         EVENT_BUS_NAME    = "default"
         LOG_LEVEL         = "INFO"
-        METRICS_NAMESPACE = var.metrics_namespace
         SERVICE_NAME      = "order-api"
-        OTEL_SERVICE_NAME = "order-api"
-      },
-      local.otel_common_env,
-      local.lambda_wrapper_env
+      }
     )
   }
 
   depends_on = [
     aws_cloudwatch_log_group.get_order,
-    aws_iam_role_policy_attachment.get_order_logs,
-    aws_iam_role_policy_attachment.get_order_xray
+    aws_iam_role_policy_attachment.get_order_logs
   ]
 }
 
@@ -472,32 +283,21 @@ resource "aws_lambda_function" "payment_simulator" {
   timeout          = 15
   memory_size      = 256
 
-  tracing_config {
-    mode = "Active"
-  }
-
-  layers = local.adot_layer_arns
-
   environment {
     variables = merge(
       {
         ORDERS_TABLE_NAME    = aws_dynamodb_table.orders.name
         EVENT_BUS_NAME       = "default"
         LOG_LEVEL            = "INFO"
-        METRICS_NAMESPACE    = var.metrics_namespace
         PAYMENT_FAILURE_MODE = var.payment_failure_mode
         SERVICE_NAME         = "payment-simulator"
-        OTEL_SERVICE_NAME    = "payment-simulator"
-      },
-      local.otel_common_env,
-      local.lambda_wrapper_env
+      }
     )
   }
 
   depends_on = [
     aws_cloudwatch_log_group.payment_simulator,
-    aws_iam_role_policy_attachment.payment_simulator_logs,
-    aws_iam_role_policy_attachment.payment_simulator_xray
+    aws_iam_role_policy_attachment.payment_simulator_logs
   ]
 }
 
@@ -511,33 +311,22 @@ resource "aws_lambda_function" "order_processor" {
   timeout          = 10
   memory_size      = 256
 
-  tracing_config {
-    mode = "Active"
-  }
-
-  layers = local.adot_layer_arns
-
   environment {
     variables = merge(
       {
         ORDERS_TABLE_NAME               = aws_dynamodb_table.orders.name
         EVENT_BUS_NAME                  = "default"
         LOG_LEVEL                       = "INFO"
-        METRICS_NAMESPACE               = var.metrics_namespace
         PAYMENT_SIMULATOR_FUNCTION_NAME = aws_lambda_function.payment_simulator.function_name
         SERVICE_NAME                    = "order-processor"
-        OTEL_SERVICE_NAME               = "order-processor"
-      },
-      local.otel_common_env,
-      local.lambda_wrapper_env
+      }
     )
   }
 
   depends_on = [
     aws_cloudwatch_log_group.order_processor,
     aws_iam_role_policy.order_processor,
-    aws_iam_role_policy_attachment.order_processor_logs,
-    aws_iam_role_policy_attachment.order_processor_xray
+    aws_iam_role_policy_attachment.order_processor_logs
   ]
 }
 
