@@ -25,13 +25,31 @@ spec:
     target: aws
     region: us-east-1
   telemetry:
+    openTelemetry:
+      enabled: false
+      semanticConventions: opentelemetry
+      propagators:
+        - tracecontext
+        - baggage
+        - xray
+    resourceAttributes:
+      service.name: order-processing
+      service.namespace: workshop-order-processing
+      deployment.environment: dev
+      cloud.provider: aws
     signals:
       traces:
         enabled: false
+        ingestion: collector
+        backendClass: traces-standard
       metrics:
         enabled: false
+        ingestion: collector
+        backendClass: metrics-standard
       logs:
         enabled: true
+        ingestion: collector
+        backendClass: logs-standard
         format: json
   capabilities:
     dashboards:
