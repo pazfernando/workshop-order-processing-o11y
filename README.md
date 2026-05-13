@@ -37,6 +37,15 @@ No se mantiene aquí:
 - collectors compartidos, dashboards, alertas o backends de observabilidad
 - la provisión de la managed suite dentro de este repositorio
 
+## Metric Catalog
+
+El contrato de observabilidad declara estas métricas de negocio para el workload:
+
+| Metric | Type | Unit | Meaning |
+| :--- | :--- | :--- | :--- |
+| `OrdersCreated` | `counter` | `{order}` | Total de órdenes creadas exitosamente. |
+| `CreateOrderLatencyMs` | `histogram` | `ms` | Latencia de `POST /orders`. |
+
 ## Contrato e integración con IDP
 
 - Contrato del consumidor: [contracts/observability/order-processing.observability.yaml](/Users/pazfernando/Documents/projects/windsurf/workshop-order-processing/contracts/observability/order-processing.observability.yaml)
@@ -47,7 +56,7 @@ El flujo esperado es:
 1. este repo versiona su contrato de observabilidad
 2. el pipeline de CD llama al reusable workflow del IDP
 3. el workflow del IDP valida el contrato, construye el plan y genera `bindings.json`
-4. si se pide, el workflow del IDP despliega primero la managed suite y reutiliza su OTLP endpoint
+4. por defecto, el workflow del IDP despliega primero la managed suite y reutiliza su OTLP endpoint para resolver collector mode
 5. este repo despliega la app consumiendo esos bindings en Terraform
 
 ## Desarrollo
@@ -79,7 +88,7 @@ Workflows:
 
 - el contrato versionado en este repo
 - un job reusable hacia `pazfernando/workshop-idp-o11y/.github/workflows/contract-consumer.yml@main`
-- inputs de `workflow_dispatch` para instrumentation mode, endpoints OTLP y managed suite
+- inputs de `workflow_dispatch` para instrumentation mode, endpoints OTLP y managed suite, con defaults `code`, `collector` y EMF habilitado
 - `bindings.json` generado por la plataforma y persistido en `build/observability/`
 - Terraform para recursos propios de la aplicación y para inyectar los bindings resultantes en las Lambdas
 - una reconciliación previa del state para importar recursos AWS preexistentes del stack antes del `terraform apply`

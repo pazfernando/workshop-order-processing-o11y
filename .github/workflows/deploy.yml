@@ -84,7 +84,7 @@ on:
       observability_emf_compatibility_mode:
         description: Keep EMF compatibility mode enabled in generated bindings
         required: false
-        default: "false"
+        default: "true"
         type: choice
         options:
           - "true"
@@ -92,7 +92,7 @@ on:
       deploy_managed_suite:
         description: Ask the platform workflow to deploy the managed observability suite first
         required: false
-        default: "false"
+        default: "true"
         type: choice
         options:
           - "true"
@@ -160,8 +160,8 @@ jobs:
       direct_traces_endpoint: ${{ inputs.observability_direct_traces_endpoint != '' && inputs.observability_direct_traces_endpoint || vars.OBSERVABILITY_DIRECT_TRACES_ENDPOINT || '' }}
       direct_metrics_endpoint: ${{ inputs.observability_direct_metrics_endpoint != '' && inputs.observability_direct_metrics_endpoint || vars.OBSERVABILITY_DIRECT_METRICS_ENDPOINT || '' }}
       metric_export_interval_ms: ${{ fromJSON(inputs.observability_metric_export_interval_ms != '' && inputs.observability_metric_export_interval_ms || vars.OBSERVABILITY_METRIC_EXPORT_INTERVAL_MS || '10000') }}
-      emf_compatibility_mode: ${{ fromJSON(inputs.observability_emf_compatibility_mode != '' && inputs.observability_emf_compatibility_mode || vars.OBSERVABILITY_EMF_COMPATIBILITY_MODE || 'false') }}
-      deploy_managed_suite: ${{ fromJSON(inputs.deploy_managed_suite != '' && inputs.deploy_managed_suite || vars.DEPLOY_MANAGED_SUITE || 'false') }}
+      emf_compatibility_mode: ${{ fromJSON(inputs.observability_emf_compatibility_mode != '' && inputs.observability_emf_compatibility_mode || vars.OBSERVABILITY_EMF_COMPATIBILITY_MODE || 'true') }}
+      deploy_managed_suite: ${{ fromJSON(inputs.deploy_managed_suite != '' && inputs.deploy_managed_suite || vars.DEPLOY_MANAGED_SUITE || 'true') }}
       aws_region: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'us-east-1' }}
       managed_suite_name: ${{ inputs.managed_suite_name != '' && inputs.managed_suite_name || vars.MANAGED_SUITE_NAME || 'order-processing-o11y' }}
       managed_suite_subnet_id: ${{ inputs.managed_suite_subnet_id != '' && inputs.managed_suite_subnet_id || vars.MANAGED_SUITE_SUBNET_ID || '' }}
@@ -586,6 +586,13 @@ jobs:
           | Effective OTLP base endpoint | \`${EFFECTIVE_OTLP_BASE_ENDPOINT}\` |
           | Effective OTLP traces endpoint | \`${EFFECTIVE_OTLP_TRACES_ENDPOINT}\` |
           | Effective OTLP metrics endpoint | \`${EFFECTIVE_OTLP_METRICS_ENDPOINT}\` |
+
+          ## Collected Business Metrics
+
+          | Metric | Type | Unit | Meaning |
+          | :--- | :--- | :--- | :--- |
+          | \`OrdersCreated\` | \`counter\` | \`{order}\` | Total de órdenes creadas exitosamente. |
+          | \`CreateOrderLatencyMs\` | \`histogram\` | \`ms\` | Latencia de \`POST /orders\`. |
 
           ## Notes
 

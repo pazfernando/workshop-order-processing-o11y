@@ -44,7 +44,7 @@ El workflow [deploy.yml](/Users/pazfernando/Documents/projects/windsurf/workshop
 
 - llama al reusable workflow `pazfernando/workshop-idp-o11y/.github/workflows/contract-consumer.yml@main`
 - delega en la plataforma la validación del contrato, el plan y la generación de bindings
-- puede pedir a la plataforma que despliegue primero la managed suite
+- por defecto pide a la plataforma que despliegue primero la managed suite
 - persiste `validation.txt`, `plan.json` y `bindings.json` en `build/observability/`
 - transforma `bindings.json` en un archivo `terraform.tfvars.json`
 - reconcilia el state de Terraform importando recursos AWS del stack si ya existen
@@ -57,11 +57,11 @@ Los principales inputs expuestos por este repo al `workflow_dispatch` son:
 
 | Input | Uso |
 | :--- | :--- |
-| `observability_instrumentation_mode` | `code` o `adot_layer` |
+| `observability_instrumentation_mode` | `code` o `adot_layer`; default `code` |
 | `observability_collector_endpoint` | Endpoint base OTLP para collector mode |
 | `observability_direct_endpoint` | Endpoint base OTLP para direct mode |
-| `observability_emf_compatibility_mode` | Compatibilidad EMF en bindings AWS Lambda |
-| `deploy_managed_suite` | Si la plataforma debe desplegar primero su managed suite |
+| `observability_emf_compatibility_mode` | Compatibilidad EMF en bindings AWS Lambda; default `true` |
+| `deploy_managed_suite` | Si la plataforma debe desplegar primero su managed suite; default `true` |
 | `managed_suite_name` | Nombre base de la managed suite |
 | `managed_suite_grafana_allowed_cidrs` | CIDRs para acceso a Grafana |
 | `managed_suite_otlp_allowed_cidrs` | CIDRs para acceso a OTLP |
