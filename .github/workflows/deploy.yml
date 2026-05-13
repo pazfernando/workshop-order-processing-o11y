@@ -329,6 +329,7 @@ jobs:
           GET_ORDER_FUNCTION_NAME="${EFFECTIVE_STACK_NAME}-get-order"
           PAYMENT_SIMULATOR_FUNCTION_NAME="${EFFECTIVE_STACK_NAME}-payment-simulator"
           ORDER_PROCESSOR_FUNCTION_NAME="${EFFECTIVE_STACK_NAME}-order-processor"
+          ORDERS_TABLE_NAME="${EFFECTIVE_STACK_NAME}-orders"
           API_NAME="${EFFECTIVE_STACK_NAME}-http-api"
           EVENT_RULE_NAME="${EFFECTIVE_STACK_NAME}-order-created"
           API_ACCESS_LOG_GROUP_NAME="/aws/apigateway/${EFFECTIVE_STACK_NAME}-http-api-access"
@@ -336,6 +337,61 @@ jobs:
           GET_ORDER_LOG_GROUP_NAME="/aws/lambda/${GET_ORDER_FUNCTION_NAME}"
           PAYMENT_SIMULATOR_LOG_GROUP_NAME="/aws/lambda/${PAYMENT_SIMULATOR_FUNCTION_NAME}"
           ORDER_PROCESSOR_LOG_GROUP_NAME="/aws/lambda/${ORDER_PROCESSOR_FUNCTION_NAME}"
+          CREATE_ORDER_ROLE_NAME="${CREATE_ORDER_FUNCTION_NAME}-role"
+          GET_ORDER_ROLE_NAME="${GET_ORDER_FUNCTION_NAME}-role"
+          PAYMENT_SIMULATOR_ROLE_NAME="${PAYMENT_SIMULATOR_FUNCTION_NAME}-role"
+          ORDER_PROCESSOR_ROLE_NAME="${ORDER_PROCESSOR_FUNCTION_NAME}-role"
+          CREATE_ORDER_POLICY_NAME="${CREATE_ORDER_FUNCTION_NAME}-policy"
+          GET_ORDER_POLICY_NAME="${GET_ORDER_FUNCTION_NAME}-policy"
+          ORDER_PROCESSOR_POLICY_NAME="${ORDER_PROCESSOR_FUNCTION_NAME}-policy"
+          LAMBDA_BASIC_EXECUTION_POLICY_ARN="arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+
+          if aws dynamodb describe-table --table-name "$ORDERS_TABLE_NAME" >/dev/null 2>&1; then
+            tf_import_if_missing "aws_dynamodb_table.orders" "$ORDERS_TABLE_NAME"
+          fi
+
+          for ITEM in \
+            "aws_iam_role.create_order:${CREATE_ORDER_ROLE_NAME}" \
+            "aws_iam_role.get_order:${GET_ORDER_ROLE_NAME}" \
+            "aws_iam_role.payment_simulator:${PAYMENT_SIMULATOR_ROLE_NAME}" \
+            "aws_iam_role.order_processor:${ORDER_PROCESSOR_ROLE_NAME}"
+          do
+            ADDRESS="${ITEM%%:*}"
+            ROLE_NAME="${ITEM#*:}"
+
+            if aws iam get-role --role-name "$ROLE_NAME" >/dev/null 2>&1; then
+              tf_import_if_missing "$ADDRESS" "$ROLE_NAME"
+            fi
+          done
+
+          for ITEM in \
+            "aws_iam_role_policy.create_order:${CREATE_ORDER_ROLE_NAME}:${CREATE_ORDER_POLICY_NAME}" \
+            "aws_iam_role_policy.get_order:${GET_ORDER_ROLE_NAME}:${GET_ORDER_POLICY_NAME}" \
+            "aws_iam_role_policy.order_processor:${ORDER_PROCESSOR_ROLE_NAME}:${ORDER_PROCESSOR_POLICY_NAME}"
+          do
+            ADDRESS="${ITEM%%:*}"
+            REST="${ITEM#*:}"
+            ROLE_NAME="${REST%%:*}"
+            POLICY_NAME="${REST#*:}"
+
+            if aws iam get-role-policy --role-name "$ROLE_NAME" --policy-name "$POLICY_NAME" >/dev/null 2>&1; then
+              tf_import_if_missing "$ADDRESS" "${ROLE_NAME}:${POLICY_NAME}"
+            fi
+          done
+
+          for ITEM in \
+            "aws_iam_role_policy_attachment.create_order_logs:${CREATE_ORDER_ROLE_NAME}" \
+            "aws_iam_role_policy_attachment.get_order_logs:${GET_ORDER_ROLE_NAME}" \
+            "aws_iam_role_policy_attachment.payment_simulator_logs:${PAYMENT_SIMULATOR_ROLE_NAME}" \
+            "aws_iam_role_policy_attachment.order_processor_logs:${ORDER_PROCESSOR_ROLE_NAME}"
+          do
+            ADDRESS="${ITEM%%:*}"
+            ROLE_NAME="${ITEM#*:}"
+
+            if aws iam list-attached-role-policies --role-name "$ROLE_NAME" --query "AttachedPolicies[?PolicyArn=='${LAMBDA_BASIC_EXECUTION_POLICY_ARN}'].PolicyArn | [0]" --output text 2>/dev/null | grep -q "$LAMBDA_BASIC_EXECUTION_POLICY_ARN"; then
+              tf_import_if_missing "$ADDRESS" "${ROLE_NAME}/${LAMBDA_BASIC_EXECUTION_POLICY_ARN}"
+            fi
+          done
 
           for ITEM in \
             "aws_lambda_function.create_order:${CREATE_ORDER_FUNCTION_NAME}" \
@@ -369,6 +425,9 @@ jobs:
           API_ID="$(aws apigatewayv2 get-apis --query "Items[?Name=='${API_NAME}'].ApiId | [0]" --output text)"
 
           if [ "$API_ID" != "None" ] && [ -n "$API_ID" ]; then
+            tf_import_if_missing "aws_apigatewayv2_api.orders" "$API_ID"
+            tf_import_if_missing "aws_apigatewayv2_stage.default" "${API_ID}/\$default"
+
             CREATE_ORDER_ROUTE_ID="$(aws apigatewayv2 get-routes --api-id "$API_ID" --query "Items[?RouteKey=='POST /orders'].RouteId | [0]" --output text)"
             GET_ORDER_ROUTE_ID="$(aws apigatewayv2 get-routes --api-id "$API_ID" --query "Items[?RouteKey=='GET /orders/{orderId}'].RouteId | [0]" --output text)"
 
@@ -391,6 +450,10 @@ jobs:
                 tf_import_if_missing "aws_apigatewayv2_integration.get_order" "${API_ID}/${GET_ORDER_INTEGRATION_ID}"
               fi
             fi
+          fi
+
+          if aws events describe-rule --name "$EVENT_RULE_NAME" >/dev/null 2>&1; then
+            tf_import_if_missing "aws_cloudwatch_event_rule.order_created" "$EVENT_RULE_NAME"
           fi
 
           if aws lambda get-policy --function-name "$CREATE_ORDER_FUNCTION_NAME" --query 'Policy' --output text 2>/dev/null | grep -q 'AllowHttpApiInvokeCreateOrder'; then

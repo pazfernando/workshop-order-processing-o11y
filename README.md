@@ -82,3 +82,4 @@ Workflows:
 - inputs de `workflow_dispatch` para instrumentation mode, endpoints OTLP y managed suite
 - `bindings.json` generado por la plataforma y persistido en `build/observability/`
 - Terraform para recursos propios de la aplicación y para inyectar los bindings resultantes en las Lambdas
+- una reconciliación previa del state para importar recursos AWS preexistentes del stack antes del `terraform apply`

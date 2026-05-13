@@ -47,6 +47,7 @@ El workflow [deploy.yml](/Users/pazfernando/Documents/projects/windsurf/workshop
 - puede pedir a la plataforma que despliegue primero la managed suite
 - persiste `validation.txt`, `plan.json` y `bindings.json` en `build/observability/`
 - transforma `bindings.json` en un archivo `terraform.tfvars.json`
+- reconcilia el state de Terraform importando recursos AWS del stack si ya existen
 - despliega la app con Terraform
 - no crea plataforma de observabilidad compartida
 
