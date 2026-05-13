@@ -28,13 +28,18 @@ on:
         required: false
         default: "1"
         type: string
-      metrics_namespace:
-        description: CloudWatch metrics namespace for EMF
+      observability_contract_path:
+        description: Path to the observability contract versioned by this consumer repo
         required: false
-        default: Workshop/OrderProcessing
+        default: contracts/observability/order-processing.observability.yaml
+        type: string
+      observability_provider_ref:
+        description: Identifier or URL returned by the external observability IDP for this workload
+        required: false
+        default: ""
         type: string
       otel_mode:
-        description: "Who initializes OpenTelemetry in Lambda: app code or ADOT layer. For collector in this repo, use code"
+        description: Runtime binding resolved by the external observability platform
         required: false
         default: code
         type: choice
@@ -42,17 +47,12 @@ on:
           - code
           - adot_layer
       adot_lambda_layer_arn:
-        description: Optional ADOT Lambda layer ARN. Leave empty to infer by AWS region when using adot_layer
-        required: false
-        default: ""
-        type: string
-      otel_exporter_otlp_endpoint:
-        description: "Optional direct OTLP base endpoint for non-CloudWatch backends. For CloudWatch direct prefer per-signal endpoints or leave all direct endpoints empty with adot_layer"
+        description: ADOT Lambda layer ARN when the provider selected adot_layer
         required: false
         default: ""
         type: string
       otel_export_strategy:
-        description: "Where OTLP goes first: direct to the final backend or collector first"
+        description: Runtime export route provided by the observability platform
         required: false
         default: direct
         type: choice
@@ -60,59 +60,43 @@ on:
           - collector
           - direct
       otel_collector_endpoint:
-        description: Collector OTLP base endpoint. Leave empty to let Terraform infer the Alloy endpoint when collector provisions the EC2 suite
+        description: Collector OTLP base endpoint returned by the observability platform
         required: false
         default: ""
         type: string
       otel_collector_traces_endpoint:
-        description: Optional collector traces endpoint override
+        description: Collector traces endpoint override returned by the observability platform
         required: false
         default: ""
         type: string
       otel_collector_metrics_endpoint:
-        description: Optional collector metrics endpoint override
+        description: Collector metrics endpoint override returned by the observability platform
+        required: false
+        default: ""
+        type: string
+      otel_exporter_otlp_endpoint:
+        description: Direct OTLP base endpoint returned by the observability platform
         required: false
         default: ""
         type: string
       otel_exporter_otlp_traces_endpoint:
-        description: "Optional direct traces OTLP endpoint. Leave empty to infer X-Ray when using adot_layer + direct"
+        description: Direct traces OTLP endpoint returned by the observability platform
         required: false
         default: ""
         type: string
       otel_exporter_otlp_metrics_endpoint:
-        description: "Optional direct metrics OTLP endpoint. Leave empty to infer CloudWatch Metrics when using adot_layer + direct"
+        description: Direct metrics OTLP endpoint returned by the observability platform
         required: false
         default: ""
         type: string
       observability_emf_compatibility_mode:
         description: Keep EMF metrics in parallel during migration
         required: false
-        default: "true"
+        default: "false"
         type: choice
         options:
           - "true"
           - "false"
-      create_observability_dashboard:
-        description: Create CloudWatch dashboard
-        required: false
-        default: "true"
-        type: choice
-        options:
-          - "true"
-          - "false"
-      create_observability_alarms:
-        description: Create CloudWatch alarms
-        required: false
-        default: "true"
-        type: choice
-        options:
-          - "true"
-          - "false"
-      observability_suite_instance_type:
-        description: EC2 instance type for the observability suite
-        required: false
-        default: t3.small
-        type: string
 
 jobs:
   deploy:
@@ -128,7 +112,9 @@ jobs:
       RESOURCE_PREFIX: ${{ inputs.resource_prefix != '' && inputs.resource_prefix || vars.RESOURCE_PREFIX || 'aws-dev-1' }}
       PAYMENT_FAILURE_MODE: ${{ inputs.payment_failure_mode != '' && inputs.payment_failure_mode || vars.PAYMENT_FAILURE_MODE || 'random_fail' }}
       LOG_RETENTION_IN_DAYS: ${{ inputs.log_retention_in_days != '' && inputs.log_retention_in_days || vars.LOG_RETENTION_IN_DAYS || '7' }}
-      METRICS_NAMESPACE: ${{ inputs.metrics_namespace != '' && inputs.metrics_namespace || vars.METRICS_NAMESPACE || 'Workshop/OrderProcessing' }}
+      OBSERVABILITY_CONTRACT_PATH: ${{ inputs.observability_contract_path != '' && inputs.observability_contract_path || 'contracts/observability/order-processing.observability.yaml' }}
+      OBSERVABILITY_PROVIDER_REF: ${{ inputs.observability_provider_ref != '' && inputs.observability_provider_ref || vars.OBSERVABILITY_PROVIDER_REF || '' }}
+      METRICS_NAMESPACE: ${{ vars.METRICS_NAMESPACE != '' && vars.METRICS_NAMESPACE || 'Workshop/OrderProcessing' }}
       OTEL_MODE: ${{ inputs.otel_mode != '' && inputs.otel_mode || vars.OTEL_MODE || 'code' }}
       OTEL_EXPORT_STRATEGY: ${{ inputs.otel_export_strategy != '' && inputs.otel_export_strategy || vars.OTEL_EXPORT_STRATEGY || 'direct' }}
       OTEL_COLLECTOR_ENDPOINT: ${{ inputs.otel_collector_endpoint != '' && inputs.otel_collector_endpoint || vars.OTEL_COLLECTOR_ENDPOINT || '' }}
@@ -140,18 +126,6 @@ jobs:
       OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: ${{ inputs.otel_exporter_otlp_metrics_endpoint != '' && inputs.otel_exporter_otlp_metrics_endpoint || vars.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT || '' }}
       OTEL_METRIC_EXPORT_INTERVAL_MS: ${{ vars.OTEL_METRIC_EXPORT_INTERVAL_MS != '' && vars.OTEL_METRIC_EXPORT_INTERVAL_MS || '10000' }}
       OBSERVABILITY_EMF_COMPATIBILITY_MODE: ${{ inputs.observability_emf_compatibility_mode != '' && inputs.observability_emf_compatibility_mode || vars.OBSERVABILITY_EMF_COMPATIBILITY_MODE || 'false' }}
-      CREATE_OBSERVABILITY_DASHBOARD: ${{ inputs.create_observability_dashboard != '' && inputs.create_observability_dashboard || vars.CREATE_OBSERVABILITY_DASHBOARD || 'true' }}
-      CREATE_OBSERVABILITY_ALARMS: ${{ inputs.create_observability_alarms != '' && inputs.create_observability_alarms || vars.CREATE_OBSERVABILITY_ALARMS || 'true' }}
-      OBSERVABILITY_SUITE_INSTANCE_TYPE: ${{ inputs.observability_suite_instance_type != '' && inputs.observability_suite_instance_type || vars.OBSERVABILITY_SUITE_INSTANCE_TYPE || 't3.small' }}
-      OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD: ${{ secrets.OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD != '' && secrets.OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD || vars.OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD || '' }}
-      TF_VAR_observability_suite_grafana_admin_password: ${{ secrets.OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD != '' && secrets.OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD || vars.OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD || '' }}
-      OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB: ${{ vars.OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB != '' && vars.OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB || '20' }}
-      API_5XX_ALARM_THRESHOLD: ${{ vars.API_5XX_ALARM_THRESHOLD != '' && vars.API_5XX_ALARM_THRESHOLD || '1' }}
-      ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD: ${{ vars.ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD != '' && vars.ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD || '1' }}
-      PAYMENT_LATENCY_ALARM_THRESHOLD_MS: ${{ vars.PAYMENT_LATENCY_ALARM_THRESHOLD_MS != '' && vars.PAYMENT_LATENCY_ALARM_THRESHOLD_MS || '3000' }}
-      OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS: ${{ vars.OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS != '' && vars.OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS || '["0.0.0.0/0"]' }}
-      OBSERVABILITY_SUITE_OTLP_ALLOWED_CIDRS: ${{ vars.OBSERVABILITY_SUITE_OTLP_ALLOWED_CIDRS != '' && vars.OBSERVABILITY_SUITE_OTLP_ALLOWED_CIDRS || '["0.0.0.0/0"]' }}
-      OBSERVABILITY_SUITE_SSH_ALLOWED_CIDRS: ${{ vars.OBSERVABILITY_SUITE_SSH_ALLOWED_CIDRS != '' && vars.OBSERVABILITY_SUITE_SSH_ALLOWED_CIDRS || '[]' }}
       TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
       TF_STATE_KEY: ${{ vars.TF_STATE_KEY }}
 
@@ -182,6 +156,18 @@ jobs:
 
       - name: Prepare Lambda bundle
         run: bash scripts/prepare-lambda-package.sh
+
+      - name: Validate observability contract reference
+        run: |
+          if [ ! -f "$OBSERVABILITY_CONTRACT_PATH" ]; then
+            echo "Observability contract not found at $OBSERVABILITY_CONTRACT_PATH" >&2
+            exit 1
+          fi
+
+          if ! grep -q '^apiVersion:' "$OBSERVABILITY_CONTRACT_PATH"; then
+            echo "Observability contract at $OBSERVABILITY_CONTRACT_PATH does not look like a valid manifest." >&2
+            exit 1
+          fi
 
       - name: Ensure Terraform state bucket
         run: |
@@ -265,7 +251,7 @@ jobs:
 
           echo "EFFECTIVE_ADOT_LAMBDA_LAYER_ARN=${EFFECTIVE_ADOT_LAMBDA_LAYER_ARN}" >> "$GITHUB_ENV"
 
-      - name: Validate observability configuration
+      - name: Validate external observability bindings
         run: |
           is_cloudwatch_traces_endpoint() {
             case "$1" in
@@ -286,26 +272,17 @@ jobs:
             exit 1
           fi
 
-          if [ "$OTEL_MODE" = "adot_layer" ]; then
-            echo "Using ADOT Node.js Lambda layer with AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-handler and CloudWatchLambdaApplicationSignalsExecutionRolePolicy attached by Terraform."
-          fi
-
-          if [ "$OTEL_EXPORT_STRATEGY" = "collector" ] && [ -z "$OTEL_COLLECTOR_ENDPOINT" ] && [ -z "$OTEL_COLLECTOR_TRACES_ENDPOINT" ] && [ -z "$OTEL_COLLECTOR_METRICS_ENDPOINT" ]; then
-            echo "Collector strategy selected. Terraform will provision the EC2 observability suite and infer the Alloy OTLP HTTP endpoint for traces and metrics unless explicit collector endpoints are provided."
+          if [ "$OTEL_EXPORT_STRATEGY" = "collector" ] && \
+             [ -z "$OTEL_COLLECTOR_ENDPOINT" ] && \
+             [ -z "$OTEL_COLLECTOR_TRACES_ENDPOINT" ] && \
+             [ -z "$OTEL_COLLECTOR_METRICS_ENDPOINT" ]; then
+            echo "Collector mode now assumes an external observability platform. Provide collector endpoints from the IDP." >&2
+            exit 1
           fi
 
           if [ "$OTEL_EXPORT_STRATEGY" = "collector" ] && [ "$OTEL_MODE" = "adot_layer" ]; then
             echo "In this repo, otel_mode=adot_layer with otel_export_strategy=collector is not supported for custom business metrics." >&2
-            echo "Use otel_mode=code with otel_export_strategy=collector for Grafana/Alloy/Prometheus metrics, or keep adot_layer for direct CloudWatch OTLP." >&2
             exit 1
-          fi
-
-          if [ "$OTEL_EXPORT_STRATEGY" = "direct" ] && [ -z "$OTEL_EXPORTER_OTLP_ENDPOINT" ] && [ -z "$OTEL_EXPORTER_OTLP_TRACES_ENDPOINT" ] && [ -z "$OTEL_EXPORTER_OTLP_METRICS_ENDPOINT" ]; then
-            if [ "$OTEL_MODE" = "adot_layer" ]; then
-              echo "Direct OTLP endpoints left empty with adot_layer. Terraform will infer CloudWatch OTLP traces and metrics endpoints for region ${AWS_REGION}."
-            else
-              echo "No OTLP endpoint configured. The stack will still emit EMF/X-Ray signals, but OTel export will remain inactive."
-            fi
           fi
 
           if [ "$OTEL_MODE" = "code" ] && [ "$OTEL_EXPORT_STRATEGY" = "direct" ]; then
@@ -313,7 +290,7 @@ jobs:
                is_cloudwatch_metrics_endpoint "$OTEL_EXPORTER_OTLP_ENDPOINT" || \
                is_cloudwatch_traces_endpoint "$OTEL_EXPORTER_OTLP_TRACES_ENDPOINT" || \
                is_cloudwatch_metrics_endpoint "$OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"; then
-              echo "CloudWatch direct OTLP endpoints require SigV4-capable ADOT runtime support. Use otel_mode=adot_layer for CloudWatch direct OTLP in this repo." >&2
+              echo "CloudWatch direct OTLP endpoints require SigV4-capable ADOT runtime support. Use otel_mode=adot_layer for CloudWatch direct OTLP." >&2
               exit 1
             fi
           fi
@@ -348,10 +325,6 @@ jobs:
           ORDER_PROCESSOR_FUNCTION_NAME="${EFFECTIVE_STACK_NAME}-order-processor"
           API_NAME="${EFFECTIVE_STACK_NAME}-http-api"
           EVENT_RULE_NAME="${EFFECTIVE_STACK_NAME}-order-created"
-          DASHBOARD_NAME="${EFFECTIVE_STACK_NAME}-observability"
-          API_5XX_ALARM_NAME="${EFFECTIVE_STACK_NAME}-api-5xx"
-          ORDER_PROCESSOR_ERRORS_ALARM_NAME="${EFFECTIVE_STACK_NAME}-order-processor-errors"
-          PAYMENT_LATENCY_ALARM_NAME="${EFFECTIVE_STACK_NAME}-payment-latency"
           API_ACCESS_LOG_GROUP_NAME="/aws/apigateway/${EFFECTIVE_STACK_NAME}-http-api-access"
           CREATE_ORDER_LOG_GROUP_NAME="/aws/lambda/${CREATE_ORDER_FUNCTION_NAME}"
           GET_ORDER_LOG_GROUP_NAME="/aws/lambda/${GET_ORDER_FUNCTION_NAME}"
@@ -384,23 +357,6 @@ jobs:
 
             if aws logs describe-log-groups --log-group-name-prefix "$LOG_GROUP_NAME" --query "logGroups[?logGroupName=='${LOG_GROUP_NAME}'].logGroupName | [0]" --output text 2>/dev/null | grep -q "$LOG_GROUP_NAME"; then
               tf_import_if_missing "$ADDRESS" "$LOG_GROUP_NAME"
-            fi
-          done
-
-          if aws cloudwatch get-dashboard --dashboard-name "$DASHBOARD_NAME" >/dev/null 2>&1; then
-            tf_import_if_missing "aws_cloudwatch_dashboard.observability[0]" "$DASHBOARD_NAME"
-          fi
-
-          for ITEM in \
-            "aws_cloudwatch_metric_alarm.api_5xx[0]:${API_5XX_ALARM_NAME}" \
-            "aws_cloudwatch_metric_alarm.order_processor_errors[0]:${ORDER_PROCESSOR_ERRORS_ALARM_NAME}" \
-            "aws_cloudwatch_metric_alarm.payment_latency[0]:${PAYMENT_LATENCY_ALARM_NAME}"
-          do
-            ADDRESS="${ITEM%%:*}"
-            ALARM_NAME="${ITEM#*:}"
-
-            if aws cloudwatch describe-alarms --alarm-names "$ALARM_NAME" --query "MetricAlarms[0].AlarmName" --output text 2>/dev/null | grep -q "$ALARM_NAME"; then
-              tf_import_if_missing "$ADDRESS" "$ALARM_NAME"
             fi
           done
 
@@ -467,17 +423,7 @@ jobs:
             -var="otel_exporter_otlp_traces_endpoint=${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT}" \
             -var="otel_exporter_otlp_metrics_endpoint=${OTEL_EXPORTER_OTLP_METRICS_ENDPOINT}" \
             -var="otel_metric_export_interval_ms=${OTEL_METRIC_EXPORT_INTERVAL_MS}" \
-            -var="observability_emf_compatibility_mode=${OBSERVABILITY_EMF_COMPATIBILITY_MODE}" \
-            -var="create_observability_dashboard=${CREATE_OBSERVABILITY_DASHBOARD}" \
-            -var="create_observability_alarms=${CREATE_OBSERVABILITY_ALARMS}" \
-            -var="observability_suite_instance_type=${OBSERVABILITY_SUITE_INSTANCE_TYPE}" \
-            -var="observability_suite_root_volume_size_gb=${OBSERVABILITY_SUITE_ROOT_VOLUME_SIZE_GB}" \
-            -var="observability_suite_grafana_allowed_cidrs=${OBSERVABILITY_SUITE_GRAFANA_ALLOWED_CIDRS}" \
-            -var="observability_suite_otlp_allowed_cidrs=${OBSERVABILITY_SUITE_OTLP_ALLOWED_CIDRS}" \
-            -var="observability_suite_ssh_allowed_cidrs=${OBSERVABILITY_SUITE_SSH_ALLOWED_CIDRS}" \
-            -var="api_5xx_alarm_threshold=${API_5XX_ALARM_THRESHOLD}" \
-            -var="order_processor_error_alarm_threshold=${ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD}" \
-            -var="payment_latency_alarm_threshold_ms=${PAYMENT_LATENCY_ALARM_THRESHOLD_MS}"
+            -var="observability_emf_compatibility_mode=${OBSERVABILITY_EMF_COMPATIBILITY_MODE}"
 
       - name: Build deployment profile artifact
         run: |
@@ -487,7 +433,6 @@ jobs:
           ORDERS_TABLE_NAME="$(terraform -chdir=infra/terraform output -raw orders_table_name)"
           PAYMENT_SIMULATOR_NAME="$(terraform -chdir=infra/terraform output -raw payment_simulator_name)"
           API_ACCESS_LOG_GROUP_NAME="$(terraform -chdir=infra/terraform output -raw api_access_log_group_name)"
-          OBSERVABILITY_DASHBOARD_NAME="$(terraform -chdir=infra/terraform output -raw observability_dashboard_name || true)"
           EFFECTIVE_OTLP_BASE_ENDPOINT="$(terraform -chdir=infra/terraform output -raw effective_otlp_base_endpoint || true)"
           EFFECTIVE_OTLP_TRACES_ENDPOINT="$(terraform -chdir=infra/terraform output -raw effective_otlp_traces_endpoint || true)"
           EFFECTIVE_OTLP_METRICS_ENDPOINT="$(terraform -chdir=infra/terraform output -raw effective_otlp_metrics_endpoint || true)"
@@ -496,61 +441,6 @@ jobs:
           APPLICATION_SIGNALS_EXECUTION_ROLE_POLICY_ENABLED="$(terraform -chdir=infra/terraform output -raw application_signals_execution_role_policy_enabled || true)"
           EFFECTIVE_ADOT_LAMBDA_LAYER_ARN="$(terraform -chdir=infra/terraform output -raw effective_adot_lambda_layer_arn || true)"
           OTLP_EXPORT_STATUS="$(terraform -chdir=infra/terraform output -raw otlp_export_status || true)"
-          OBSERVABILITY_SUITE_ENABLED="$(terraform -chdir=infra/terraform output -raw observability_suite_enabled || true)"
-          OBSERVABILITY_SUITE_PUBLIC_IP="$(terraform -chdir=infra/terraform output -raw observability_suite_public_ip || true)"
-          OBSERVABILITY_SUITE_GRAFANA_URL="$(terraform -chdir=infra/terraform output -raw observability_suite_grafana_url || true)"
-          OBSERVABILITY_SUITE_GRAFANA_DASHBOARD_URL="$(terraform -chdir=infra/terraform output -raw observability_suite_grafana_dashboard_url || true)"
-          OBSERVABILITY_SUITE_OTLP_HTTP_ENDPOINT="$(terraform -chdir=infra/terraform output -raw observability_suite_otlp_http_endpoint || true)"
-          OBSERVABILITY_SUITE_OTLP_GRPC_ENDPOINT="$(terraform -chdir=infra/terraform output -raw observability_suite_otlp_grpc_endpoint || true)"
-
-          DISPLAY_OTLP_TRACES_ENDPOINT="${EFFECTIVE_OTLP_TRACES_ENDPOINT}"
-          DISPLAY_OTLP_METRICS_ENDPOINT="${EFFECTIVE_OTLP_METRICS_ENDPOINT}"
-
-          if [ -z "$DISPLAY_OTLP_TRACES_ENDPOINT" ] && [ -n "$EFFECTIVE_OTLP_BASE_ENDPOINT" ] && [ "$EFFECTIVE_OTLP_BASE_ENDPOINT" != "cloudwatch-managed-per-signal" ]; then
-            DISPLAY_OTLP_TRACES_ENDPOINT="${EFFECTIVE_OTLP_BASE_ENDPOINT%/}/v1/traces"
-          fi
-
-          if [ -z "$DISPLAY_OTLP_METRICS_ENDPOINT" ] && [ -n "$EFFECTIVE_OTLP_BASE_ENDPOINT" ] && [ "$EFFECTIVE_OTLP_BASE_ENDPOINT" != "cloudwatch-managed-per-signal" ]; then
-            DISPLAY_OTLP_METRICS_ENDPOINT="${EFFECTIVE_OTLP_BASE_ENDPOINT%/}/v1/metrics"
-          fi
-
-          if [ "$OTEL_MODE" = "adot_layer" ]; then
-            OTEL_INITIALIZATION="ADOT Lambda Layer"
-          else
-            OTEL_INITIALIZATION="In-process code bootstrap"
-          fi
-
-          if [ "$OTEL_EXPORT_STRATEGY" = "collector" ]; then
-            OTEL_EXPORT_ROUTE="Collector first"
-          else
-            OTEL_EXPORT_ROUTE="Direct OTLP"
-          fi
-
-          if [ "$OTLP_EXPORT_STATUS" = "active" ]; then
-            OTLP_EXPORT_STATUS_LABEL="Active"
-          else
-            OTLP_EXPORT_STATUS_LABEL="Inactive"
-          fi
-
-          if [ "$OBSERVABILITY_EMF_COMPATIBILITY_MODE" = "true" ]; then
-            EMF_STATUS="Active"
-          else
-            EMF_STATUS="Inactive"
-          fi
-
-          if [ "$OTEL_EXPORT_STRATEGY" = "collector" ] && [ "$OTEL_MODE" = "code" ]; then
-            BUSINESS_OTLP_METRICS_READINESS="Supported via in-process OTel SDK with per-invocation forceFlush"
-            COMBINATION_GUIDANCE="Recommended for Grafana/Alloy/Prometheus business metrics in this repo; Lambda handlers forceFlush metrics before returning"
-          elif [ "$OTEL_EXPORT_STRATEGY" = "direct" ] && [ "$OTEL_MODE" = "adot_layer" ]; then
-            BUSINESS_OTLP_METRICS_READINESS="Supported for direct CloudWatch OTLP"
-            COMBINATION_GUIDANCE="Recommended for CloudWatch direct OTLP in this repo"
-          elif [ "$OTEL_EXPORT_STRATEGY" = "direct" ] && [ "$OTEL_MODE" = "code" ]; then
-            BUSINESS_OTLP_METRICS_READINESS="Supported for non-AWS OTLP backends"
-            COMBINATION_GUIDANCE="Recommended for generic direct OTLP backends"
-          else
-            BUSINESS_OTLP_METRICS_READINESS="Unsupported in this repo"
-            COMBINATION_GUIDANCE="Do not use this combination for workshop business metrics"
-          fi
 
           cat > build/artifacts/deployment-profile.md <<EOF
           # Deployment Profile
@@ -571,155 +461,30 @@ jobs:
           | Orders Table | \`${ORDERS_TABLE_NAME}\` |
           | Payment Simulator Lambda | \`${PAYMENT_SIMULATOR_NAME}\` |
           | API Access Log Group | \`${API_ACCESS_LOG_GROUP_NAME}\` |
-          | CloudWatch Dashboard | \`${OBSERVABILITY_DASHBOARD_NAME}\` |
-          | Collector-managed suite active | \`${OBSERVABILITY_SUITE_ENABLED}\` |
-          | Observability Suite Public IP | \`${OBSERVABILITY_SUITE_PUBLIC_IP}\` |
-          | Grafana URL | \`${OBSERVABILITY_SUITE_GRAFANA_URL}\` |
-          | Grafana Dashboard URL | \`${OBSERVABILITY_SUITE_GRAFANA_DASHBOARD_URL}\` |
+          | Observability Contract | \`${OBSERVABILITY_CONTRACT_PATH}\` |
+          | Observability Provider Ref | \`${OBSERVABILITY_PROVIDER_REF}\` |
 
-          ## Effective Observability Configuration
+          ## Runtime Observability Bindings
 
           | Setting | Effective Value |
           | :--- | :--- |
           | OTEL_MODE | \`${OTEL_MODE}\` |
-          | OTel initialization owner | ${OTEL_INITIALIZATION} |
           | OTEL_EXPORT_STRATEGY | \`${OTEL_EXPORT_STRATEGY}\` |
-          | OTel export route | ${OTEL_EXPORT_ROUTE} |
-          | OTLP export status | ${OTLP_EXPORT_STATUS_LABEL} |
+          | OTLP export status | \`${OTLP_EXPORT_STATUS}\` |
           | OTLP backend auth requirement | \`${EFFECTIVE_OTLP_AUTHENTICATION_MODE}\` |
           | AWS_LAMBDA_EXEC_WRAPPER | \`${EFFECTIVE_LAMBDA_EXEC_WRAPPER}\` |
           | Application Signals execution role policy | \`${APPLICATION_SIGNALS_EXECUTION_ROLE_POLICY_ENABLED}\` |
-          | EMF compatibility mode | ${EMF_STATUS} |
-          | Requested ADOT Lambda Layer ARN | \`${ADOT_LAMBDA_LAYER_ARN}\` |
+          | EMF compatibility mode | \`${OBSERVABILITY_EMF_COMPATIBILITY_MODE}\` |
           | Effective ADOT Lambda Layer ARN | \`${EFFECTIVE_ADOT_LAMBDA_LAYER_ARN}\` |
           | Effective OTLP base endpoint | \`${EFFECTIVE_OTLP_BASE_ENDPOINT}\` |
-          | Effective OTLP traces endpoint | \`${DISPLAY_OTLP_TRACES_ENDPOINT}\` |
-          | Effective OTLP metrics endpoint | \`${DISPLAY_OTLP_METRICS_ENDPOINT}\` |
-          | Alloy OTLP HTTP endpoint | \`${OBSERVABILITY_SUITE_OTLP_HTTP_ENDPOINT}\` |
-          | Alloy OTLP gRPC endpoint | \`${OBSERVABILITY_SUITE_OTLP_GRPC_ENDPOINT}\` |
-          | Metrics namespace | \`${METRICS_NAMESPACE}\` |
-          | OTel metric export interval ms | \`${OTEL_METRIC_EXPORT_INTERVAL_MS}\` |
-          | Business OTLP metrics readiness | ${BUSINESS_OTLP_METRICS_READINESS} |
-          | Combination guidance | ${COMBINATION_GUIDANCE} |
+          | Effective OTLP traces endpoint | \`${EFFECTIVE_OTLP_TRACES_ENDPOINT}\` |
+          | Effective OTLP metrics endpoint | \`${EFFECTIVE_OTLP_METRICS_ENDPOINT}\` |
 
-          ## Effective Signals
+          ## Notes
 
-          | Signal | Effective mechanism |
-          | :--- | :--- |
-          | Logs | CloudWatch Logs |
-          | API edge telemetry | API Gateway access logs + native metrics |
-          | Business metrics | OTLP to Alloy/Prometheus/Grafana; EMF to CloudWatch only when compatibility mode is active |
-          | Lambda traces | X-Ray |
-          | OTLP traces | ${OTLP_EXPORT_STATUS_LABEL} |
-          | OTLP metrics | ${OTLP_EXPORT_STATUS_LABEL} |
-          | Business OTLP metrics path | ${BUSINESS_OTLP_METRICS_READINESS} |
-
-          ## Collected Business Metrics
-
-          | Metric | Service | Meaning |
-          | :--- | :--- | :--- |
-          | \`OrdersCreated\` | \`order-api\` | Successful order creations |
-          | \`CreateOrderLatencyMs\` | \`order-api\` | Latency of \`POST /orders\` |
-          | \`CreateOrderErrors\` | \`order-api\` | Create-order failures |
-          | \`OrdersRead\` | \`order-api\` | Successful order reads |
-          | \`OrdersNotFound\` | \`order-api\` | Missing-order lookups |
-          | \`GetOrderLatencyMs\` | \`order-api\` | Latency of \`GET /orders/{orderId}\` |
-          | \`GetOrderErrors\` | \`order-api\` | Get-order failures |
-          | \`OrdersProcessed\` | \`order-processor\` | Processed order events |
-          | \`PaymentInvocationLatencyMs\` | \`order-processor\` | Payment invocation latency |
-          | \`OrderProcessorIgnoredEvents\` | \`order-processor\` | Ignored events |
-          | \`OrderProcessorDuplicateEvents\` | \`order-processor\` | Duplicate or already processed events |
-          | \`OrderProcessorErrors\` | \`order-processor\` | Order-processor failures |
-          | \`PaymentsSimulated\` | \`payment-simulator\` | Simulated payments |
-          | \`PaymentSimulationLatencyMs\` | \`payment-simulator\` | Payment simulation latency |
-          | \`PaymentSimulationErrors\` | \`payment-simulator\` | Payment simulation failures |
-
-          ## Alarm And Dashboard Settings
-
-          | Setting | Value |
-          | :--- | :--- |
-          | CREATE_OBSERVABILITY_DASHBOARD | \`${CREATE_OBSERVABILITY_DASHBOARD}\` |
-          | CREATE_OBSERVABILITY_ALARMS | \`${CREATE_OBSERVABILITY_ALARMS}\` |
-          | API_5XX_ALARM_THRESHOLD | \`${API_5XX_ALARM_THRESHOLD}\` |
-          | ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD | \`${ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD}\` |
-          | PAYMENT_LATENCY_ALARM_THRESHOLD_MS | \`${PAYMENT_LATENCY_ALARM_THRESHOLD_MS}\` |
-
-          ## Interpretation
-
-          - If \`OTEL_MODE=code\`, the application initializes OpenTelemetry from \`src/shared/otel-bootstrap.js\`.
-          - If \`OTEL_MODE=adot_layer\`, the Lambda Layer is responsible for SDK bootstrap and this repo configures \`AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-handler\` for the AWS-managed Node.js layer in use.
-          - If \`OTEL_EXPORT_STRATEGY=direct\`, Lambdas export OTLP directly to the final backend.
-          - If \`OTEL_EXPORT_STRATEGY=collector\`, Lambdas export OTLP to Alloy first and Terraform provisions the EC2 suite for the workshop.
-          - If \`OTEL_MODE=adot_layer\` and all direct OTLP inputs are empty, Terraform infers CloudWatch OTLP traces and metrics endpoints for the selected region.
-          - If \`OTEL_EXPORT_STRATEGY=collector\` and no collector endpoint override is provided, Terraform infers the Alloy OTLP HTTP base endpoint and the SDK derives \`/v1/traces\` and \`/v1/metrics\` from it.
-          - If \`OTEL_EXPORTER_OTLP_ENDPOINT\` or \`OTEL_COLLECTOR_ENDPOINT\` is used as an OTLP/HTTP base endpoint, signal-specific endpoints must not be overwritten with the bare root URL unless they already include the full \`/v1/<signal>\` path.
-          - In this repo, custom business metrics exported to a Collector are supported when \`OTEL_MODE=code\`, and the Lambda handlers forceFlush metrics before returning.
-          - In this repo, \`OTEL_MODE=adot_layer\` is reserved for direct CloudWatch OTLP and should not be combined with \`OTEL_EXPORT_STRATEGY=collector\` for workshop business metrics.
-          - If \`Application Signals execution role policy=true\`, Terraform attached \`CloudWatchLambdaApplicationSignalsExecutionRolePolicy\` to all Lambda execution roles.
-          - If \`effective_otlp_authentication_mode=sigv4\`, the selected OTLP backend requires SigV4 and this repo relies on the AWS-managed ADOT Lambda layer to satisfy that requirement at runtime.
-          - If all effective OTLP endpoints are empty, OTLP export is inactive and CloudWatch Logs remain active; EMF and X-Ray depend on the selected compatibility mode and tracing path.
-          EOF
-
-          cat > build/artifacts/deployment-profile.json <<EOF
-          {
-            "environment": "${ENVIRONMENT_NAME}",
-            "aws_region": "${AWS_REGION}",
-            "stack_name": "${STACK_NAME}",
-            "resource_prefix": "${RESOURCE_PREFIX}",
-            "git_branch": "${GITHUB_REF_NAME}",
-            "git_commit": "${GITHUB_SHA}",
-            "api_base_url": "${API_BASE_URL}",
-            "orders_table_name": "${ORDERS_TABLE_NAME}",
-            "payment_simulator_name": "${PAYMENT_SIMULATOR_NAME}",
-            "api_access_log_group_name": "${API_ACCESS_LOG_GROUP_NAME}",
-            "observability_dashboard_name": "${OBSERVABILITY_DASHBOARD_NAME}",
-            "observability_suite_enabled": "${OBSERVABILITY_SUITE_ENABLED}",
-            "observability_suite_public_ip": "${OBSERVABILITY_SUITE_PUBLIC_IP}",
-            "observability_suite_grafana_url": "${OBSERVABILITY_SUITE_GRAFANA_URL}",
-            "observability_suite_grafana_dashboard_url": "${OBSERVABILITY_SUITE_GRAFANA_DASHBOARD_URL}",
-            "otel_mode": "${OTEL_MODE}",
-            "otel_export_strategy": "${OTEL_EXPORT_STRATEGY}",
-            "otel_initialization_owner": "${OTEL_INITIALIZATION}",
-            "otel_export_route": "${OTEL_EXPORT_ROUTE}",
-            "otlp_export_status": "${OTLP_EXPORT_STATUS}",
-            "effective_otlp_authentication_mode": "${EFFECTIVE_OTLP_AUTHENTICATION_MODE}",
-            "effective_lambda_exec_wrapper": "${EFFECTIVE_LAMBDA_EXEC_WRAPPER}",
-            "application_signals_execution_role_policy_enabled": "${APPLICATION_SIGNALS_EXECUTION_ROLE_POLICY_ENABLED}",
-            "observability_emf_compatibility_mode": "${OBSERVABILITY_EMF_COMPATIBILITY_MODE}",
-            "requested_adot_lambda_layer_arn": "${ADOT_LAMBDA_LAYER_ARN}",
-            "effective_adot_lambda_layer_arn": "${EFFECTIVE_ADOT_LAMBDA_LAYER_ARN}",
-            "effective_otlp_base_endpoint": "${EFFECTIVE_OTLP_BASE_ENDPOINT}",
-            "effective_otlp_traces_endpoint": "${EFFECTIVE_OTLP_TRACES_ENDPOINT}",
-            "effective_otlp_metrics_endpoint": "${EFFECTIVE_OTLP_METRICS_ENDPOINT}",
-            "observability_suite_otlp_http_endpoint": "${OBSERVABILITY_SUITE_OTLP_HTTP_ENDPOINT}",
-            "observability_suite_otlp_grpc_endpoint": "${OBSERVABILITY_SUITE_OTLP_GRPC_ENDPOINT}",
-            "metrics_namespace": "${METRICS_NAMESPACE}",
-            "otel_metric_export_interval_ms": "${OTEL_METRIC_EXPORT_INTERVAL_MS}",
-            "business_otlp_metrics_readiness": "${BUSINESS_OTLP_METRICS_READINESS}",
-            "combination_guidance": "${COMBINATION_GUIDANCE}",
-            "collected_business_metrics": [
-              "OrdersCreated",
-              "CreateOrderLatencyMs",
-              "CreateOrderErrors",
-              "OrdersRead",
-              "OrdersNotFound",
-              "GetOrderLatencyMs",
-              "GetOrderErrors",
-              "OrdersProcessed",
-              "PaymentInvocationLatencyMs",
-              "OrderProcessorIgnoredEvents",
-              "OrderProcessorDuplicateEvents",
-              "OrderProcessorErrors",
-              "PaymentsSimulated",
-              "PaymentSimulationLatencyMs",
-              "PaymentSimulationErrors"
-            ],
-            "create_observability_dashboard": "${CREATE_OBSERVABILITY_DASHBOARD}",
-            "create_observability_alarms": "${CREATE_OBSERVABILITY_ALARMS}",
-            "api_5xx_alarm_threshold": "${API_5XX_ALARM_THRESHOLD}",
-            "order_processor_error_alarm_threshold": "${ORDER_PROCESSOR_ERROR_ALARM_THRESHOLD}",
-            "payment_latency_alarm_threshold_ms": "${PAYMENT_LATENCY_ALARM_THRESHOLD_MS}"
-          }
+          - This repository no longer provisions the shared observability platform.
+          - Collector or direct OTLP endpoints must come from the external observability IDP.
+          - The application remains responsible for emitting telemetry; the platform owns the collector, dashboards, alerts, and shared backends.
           EOF
 
       - name: Upload deployment profile artifact
