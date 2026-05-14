@@ -37,14 +37,23 @@ No se mantiene aquí:
 - collectors compartidos, dashboards, alertas o backends de observabilidad
 - la provisión de la managed suite dentro de este repositorio
 
+El camino estándar de despliegue mantiene la integración simple:
+
+- `deploy.yml` fija `instrumentation_mode` en `code`
+- `deploy.yml` pide al reusable workflow del IDP desplegar automáticamente la managed suite
+- los parámetros OTLP, ADOT, EMF y de managed suite quedan como detalle interno del flujo, no como inputs normales del usuario
+
 ## Metric Catalog
 
-El contrato de observabilidad declara estas métricas de negocio para el workload:
+El contrato de observabilidad declara métricas gobernadas por el preset `serverless-api`:
 
 | Metric | Type | Unit | Meaning |
 | :--- | :--- | :--- | :--- |
-| `OrdersCreated` | `counter` | `{order}` | Total de órdenes creadas exitosamente. |
-| `CreateOrderLatencyMs` | `histogram` | `ms` | Latencia de `POST /orders`. |
+| `HttpServerRequestCount` | `counter` | `{request}` | Total HTTP requests handled by the serverless API. |
+| `HttpServerRequestDuration` | `histogram` | `ms` | End-to-end HTTP request latency for the serverless API. |
+| `HttpServerRequestErrors` | `counter` | `{error}` | HTTP requests that completed with server-side failure conditions. |
+
+Para latencia, la métrica contractual base es `HttpServerRequestDuration`. Percentiles como `p95` o `p99` no son métricas separadas del contrato: se derivan downstream desde ese histograma, idealmente filtrando `POST /orders`.
 
 ## Contrato e integración con IDP
 
@@ -88,7 +97,9 @@ Workflows:
 
 - el contrato versionado en este repo
 - un job reusable hacia `pazfernando/workshop-idp-o11y/.github/workflows/contract-consumer.yml@main`
-- inputs de `workflow_dispatch` para instrumentation mode, endpoints OTLP y managed suite, con defaults `code`, `collector` y EMF habilitado
+- un `workflow_dispatch` reducido a inputs operativos de la app, no a knobs internos del IDP
+- `instrumentation_mode=code` fijado en el workflow
+- managed suite automática resuelta por el reusable workflow del IDP
 - `bindings.json` generado por la plataforma y persistido en `build/observability/`
 - Terraform para recursos propios de la aplicación y para inyectar los bindings resultantes en las Lambdas
 - una reconciliación previa del state para importar recursos AWS preexistentes del stack antes del `terraform apply`

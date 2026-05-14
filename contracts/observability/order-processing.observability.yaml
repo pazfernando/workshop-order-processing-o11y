@@ -47,16 +47,21 @@ spec:
         ingestion: collector
         backendClass: metrics-standard
         catalog:
-          - name: OrdersCreated
+          - name: HttpServerRequestCount
             type: counter
-            unit: "{order}"
-            description: Successful order creations.
-            dimensions: [service, operation]
-          - name: CreateOrderLatencyMs
+            unit: "{request}"
+            description: Total HTTP requests handled by the serverless API.
+            dimensions: [http.route, http.request.method, http.response.status_code]
+          - name: HttpServerRequestDuration
             type: histogram
             unit: ms
-            description: Latency of POST /orders.
-            dimensions: [service, operation]
+            description: End-to-end HTTP request latency for the serverless API.
+            dimensions: [http.route, http.request.method, http.response.status_code]
+          - name: HttpServerRequestErrors
+            type: counter
+            unit: "{error}"
+            description: HTTP requests that completed with server-side failure conditions.
+            dimensions: [http.route, http.request.method, http.response.status_code]
       logs:
         enabled: true
         ingestion: collector
@@ -64,7 +69,8 @@ spec:
         format: json
   capabilities:
     dashboards:
-      enabled: false
+      enabled: true
+      preset: serverless-api
     alerts:
       enabled: false
     slos:

@@ -28,150 +28,27 @@ on:
         required: false
         default: "1"
         type: string
-      observability_contract_path:
-        description: Path to the observability contract versioned by this consumer repo
-        required: false
-        default: contracts/observability/order-processing.observability.yaml
-        type: string
-      observability_instrumentation_mode:
-        description: AWS Lambda instrumentation mode requested from the platform workflow
-        required: false
-        default: code
-        type: choice
-        options:
-          - code
-          - adot_layer
-      observability_adot_lambda_layer_arn:
-        description: Optional ADOT Lambda layer ARN passed to the platform workflow
-        required: false
-        default: ""
-        type: string
-      observability_collector_endpoint:
-        description: Optional collector OTLP base endpoint
-        required: false
-        default: ""
-        type: string
-      observability_collector_traces_endpoint:
-        description: Optional collector traces endpoint override
-        required: false
-        default: ""
-        type: string
-      observability_collector_metrics_endpoint:
-        description: Optional collector metrics endpoint override
-        required: false
-        default: ""
-        type: string
-      observability_direct_endpoint:
-        description: Optional direct OTLP base endpoint
-        required: false
-        default: ""
-        type: string
-      observability_direct_traces_endpoint:
-        description: Optional direct OTLP traces endpoint override
-        required: false
-        default: ""
-        type: string
-      observability_direct_metrics_endpoint:
-        description: Optional direct OTLP metrics endpoint override
-        required: false
-        default: ""
-        type: string
-      observability_metric_export_interval_ms:
-        description: Metric export interval in milliseconds for generated bindings
-        required: false
-        default: "10000"
-        type: string
-      observability_emf_compatibility_mode:
-        description: Keep EMF compatibility mode enabled in generated bindings
-        required: false
-        default: "true"
-        type: choice
-        options:
-          - "true"
-          - "false"
-      deploy_managed_suite:
-        description: Ask the platform workflow to deploy the managed observability suite first
-        required: false
-        default: "true"
-        type: choice
-        options:
-          - "true"
-          - "false"
-      managed_suite_name:
-        description: Base name used for managed-suite resources
-        required: false
-        default: order-processing-o11y
-        type: string
-      managed_suite_subnet_id:
-        description: Optional subnet ID for the managed suite
-        required: false
-        default: ""
-        type: string
-      managed_suite_instance_type:
-        description: EC2 instance type for the managed suite
-        required: false
-        default: t3.small
-        type: string
-      managed_suite_root_volume_size_gb:
-        description: Root volume size in GiB for the managed suite
-        required: false
-        default: "20"
-        type: string
-      managed_suite_dashboard_uid:
-        description: Grafana dashboard UID for the managed suite
-        required: false
-        default: platform-observability
-        type: string
-      managed_suite_dashboard_title:
-        description: Grafana dashboard title for the managed suite
-        required: false
-        default: Platform Observability
-        type: string
-      managed_suite_grafana_allowed_cidrs:
-        description: JSON array of CIDR ranges allowed to access Grafana
-        required: false
-        default: "[\"0.0.0.0/0\"]"
-        type: string
-      managed_suite_otlp_allowed_cidrs:
-        description: JSON array of CIDR ranges allowed to access OTLP endpoints
-        required: false
-        default: "[\"0.0.0.0/0\"]"
-        type: string
-      managed_suite_ssh_allowed_cidrs:
-        description: JSON array of CIDR ranges allowed to access SSH
-        required: false
-        default: "[]"
-        type: string
 
 jobs:
   observability:
     uses: pazfernando/workshop-idp-o11y/.github/workflows/contract-consumer.yml@main
     with:
-      contract_path: ${{ inputs.observability_contract_path != '' && inputs.observability_contract_path || 'contracts/observability/order-processing.observability.yaml' }}
+      contract_path: contracts/observability/order-processing.observability.yaml
       upload_artifacts: true
       generate_bindings: true
       bindings_target: aws-lambda
-      instrumentation_mode: ${{ inputs.observability_instrumentation_mode != '' && inputs.observability_instrumentation_mode || vars.OBSERVABILITY_INSTRUMENTATION_MODE || 'code' }}
-      adot_lambda_layer_arn: ${{ inputs.observability_adot_lambda_layer_arn != '' && inputs.observability_adot_lambda_layer_arn || vars.OBSERVABILITY_ADOT_LAMBDA_LAYER_ARN || '' }}
-      collector_endpoint: ${{ inputs.observability_collector_endpoint != '' && inputs.observability_collector_endpoint || vars.OBSERVABILITY_COLLECTOR_ENDPOINT || '' }}
-      collector_traces_endpoint: ${{ inputs.observability_collector_traces_endpoint != '' && inputs.observability_collector_traces_endpoint || vars.OBSERVABILITY_COLLECTOR_TRACES_ENDPOINT || '' }}
-      collector_metrics_endpoint: ${{ inputs.observability_collector_metrics_endpoint != '' && inputs.observability_collector_metrics_endpoint || vars.OBSERVABILITY_COLLECTOR_METRICS_ENDPOINT || '' }}
-      direct_endpoint: ${{ inputs.observability_direct_endpoint != '' && inputs.observability_direct_endpoint || vars.OBSERVABILITY_DIRECT_ENDPOINT || '' }}
-      direct_traces_endpoint: ${{ inputs.observability_direct_traces_endpoint != '' && inputs.observability_direct_traces_endpoint || vars.OBSERVABILITY_DIRECT_TRACES_ENDPOINT || '' }}
-      direct_metrics_endpoint: ${{ inputs.observability_direct_metrics_endpoint != '' && inputs.observability_direct_metrics_endpoint || vars.OBSERVABILITY_DIRECT_METRICS_ENDPOINT || '' }}
-      metric_export_interval_ms: ${{ fromJSON(inputs.observability_metric_export_interval_ms != '' && inputs.observability_metric_export_interval_ms || vars.OBSERVABILITY_METRIC_EXPORT_INTERVAL_MS || '10000') }}
-      emf_compatibility_mode: ${{ fromJSON(inputs.observability_emf_compatibility_mode != '' && inputs.observability_emf_compatibility_mode || vars.OBSERVABILITY_EMF_COMPATIBILITY_MODE || 'true') }}
-      deploy_managed_suite: ${{ fromJSON(inputs.deploy_managed_suite != '' && inputs.deploy_managed_suite || vars.DEPLOY_MANAGED_SUITE || 'true') }}
+      instrumentation_mode: code
+      deploy_managed_suite: true
       aws_region: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'us-east-1' }}
-      managed_suite_name: ${{ inputs.managed_suite_name != '' && inputs.managed_suite_name || vars.MANAGED_SUITE_NAME || 'order-processing-o11y' }}
-      managed_suite_subnet_id: ${{ inputs.managed_suite_subnet_id != '' && inputs.managed_suite_subnet_id || vars.MANAGED_SUITE_SUBNET_ID || '' }}
-      managed_suite_instance_type: ${{ inputs.managed_suite_instance_type != '' && inputs.managed_suite_instance_type || vars.MANAGED_SUITE_INSTANCE_TYPE || 't3.small' }}
-      managed_suite_root_volume_size_gb: ${{ fromJSON(inputs.managed_suite_root_volume_size_gb != '' && inputs.managed_suite_root_volume_size_gb || vars.MANAGED_SUITE_ROOT_VOLUME_SIZE_GB || '20') }}
-      managed_suite_dashboard_uid: ${{ inputs.managed_suite_dashboard_uid != '' && inputs.managed_suite_dashboard_uid || vars.MANAGED_SUITE_DASHBOARD_UID || 'platform-observability' }}
-      managed_suite_dashboard_title: ${{ inputs.managed_suite_dashboard_title != '' && inputs.managed_suite_dashboard_title || vars.MANAGED_SUITE_DASHBOARD_TITLE || 'Platform Observability' }}
-      managed_suite_grafana_allowed_cidrs: ${{ inputs.managed_suite_grafana_allowed_cidrs != '' && inputs.managed_suite_grafana_allowed_cidrs || vars.MANAGED_SUITE_GRAFANA_ALLOWED_CIDRS || '["0.0.0.0/0"]' }}
-      managed_suite_otlp_allowed_cidrs: ${{ inputs.managed_suite_otlp_allowed_cidrs != '' && inputs.managed_suite_otlp_allowed_cidrs || vars.MANAGED_SUITE_OTLP_ALLOWED_CIDRS || '["0.0.0.0/0"]' }}
-      managed_suite_ssh_allowed_cidrs: ${{ inputs.managed_suite_ssh_allowed_cidrs != '' && inputs.managed_suite_ssh_allowed_cidrs || vars.MANAGED_SUITE_SSH_ALLOWED_CIDRS || '[]' }}
+      managed_suite_name: ${{ vars.MANAGED_SUITE_NAME != '' && vars.MANAGED_SUITE_NAME || 'order-processing-o11y' }}
+      managed_suite_subnet_id: ${{ vars.MANAGED_SUITE_SUBNET_ID || '' }}
+      managed_suite_instance_type: ${{ vars.MANAGED_SUITE_INSTANCE_TYPE != '' && vars.MANAGED_SUITE_INSTANCE_TYPE || 't3.small' }}
+      managed_suite_root_volume_size_gb: ${{ fromJSON(vars.MANAGED_SUITE_ROOT_VOLUME_SIZE_GB != '' && vars.MANAGED_SUITE_ROOT_VOLUME_SIZE_GB || '20') }}
+      managed_suite_dashboard_uid: ${{ vars.MANAGED_SUITE_DASHBOARD_UID != '' && vars.MANAGED_SUITE_DASHBOARD_UID || 'platform-observability' }}
+      managed_suite_dashboard_title: ${{ vars.MANAGED_SUITE_DASHBOARD_TITLE != '' && vars.MANAGED_SUITE_DASHBOARD_TITLE || 'Platform Observability' }}
+      managed_suite_grafana_allowed_cidrs: ${{ vars.MANAGED_SUITE_GRAFANA_ALLOWED_CIDRS != '' && vars.MANAGED_SUITE_GRAFANA_ALLOWED_CIDRS || '["0.0.0.0/0"]' }}
+      managed_suite_otlp_allowed_cidrs: ${{ vars.MANAGED_SUITE_OTLP_ALLOWED_CIDRS != '' && vars.MANAGED_SUITE_OTLP_ALLOWED_CIDRS || '["0.0.0.0/0"]' }}
+      managed_suite_ssh_allowed_cidrs: ${{ vars.MANAGED_SUITE_SSH_ALLOWED_CIDRS != '' && vars.MANAGED_SUITE_SSH_ALLOWED_CIDRS || '[]' }}
     secrets: inherit
 
   deploy:
@@ -188,7 +65,7 @@ jobs:
       RESOURCE_PREFIX: ${{ inputs.resource_prefix != '' && inputs.resource_prefix || vars.RESOURCE_PREFIX || 'aws-dev-1' }}
       PAYMENT_FAILURE_MODE: ${{ inputs.payment_failure_mode != '' && inputs.payment_failure_mode || vars.PAYMENT_FAILURE_MODE || 'random_fail' }}
       LOG_RETENTION_IN_DAYS: ${{ inputs.log_retention_in_days != '' && inputs.log_retention_in_days || vars.LOG_RETENTION_IN_DAYS || '7' }}
-      OBSERVABILITY_CONTRACT_PATH: ${{ inputs.observability_contract_path != '' && inputs.observability_contract_path || 'contracts/observability/order-processing.observability.yaml' }}
+      OBSERVABILITY_CONTRACT_PATH: contracts/observability/order-processing.observability.yaml
       TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
       TF_STATE_KEY: ${{ vars.TF_STATE_KEY }}
 
@@ -572,6 +449,7 @@ jobs:
           | Managed suite Grafana URL | \`${{ needs.observability.outputs.managed_suite_grafana_url }}\` |
           | Managed suite OTLP HTTP endpoint | \`${{ needs.observability.outputs.managed_suite_otlp_http_endpoint }}\` |
           | Effective collector endpoint | \`${{ needs.observability.outputs.effective_collector_endpoint }}\` |
+          | Effective collector source | \`${{ needs.observability.outputs.effective_collector_source }}\` |
 
           ## Effective Runtime Bindings
 
@@ -591,12 +469,14 @@ jobs:
 
           | Metric | Type | Unit | Meaning |
           | :--- | :--- | :--- | :--- |
-          | \`OrdersCreated\` | \`counter\` | \`{order}\` | Total de órdenes creadas exitosamente. |
-          | \`CreateOrderLatencyMs\` | \`histogram\` | \`ms\` | Latencia de \`POST /orders\`. |
+          | \`HttpServerRequestCount\` | \`counter\` | \`{request}\` | Total HTTP requests handled by the serverless API. |
+          | \`HttpServerRequestDuration\` | \`histogram\` | \`ms\` | End-to-end HTTP request latency for the serverless API. Use percentiles such as \`p99\` by filtering \`POST /orders\` downstream in the dashboard or backend. |
+          | \`HttpServerRequestErrors\` | \`counter\` | \`{error}\` | HTTP requests that completed with server-side failure conditions. |
 
           ## Notes
 
           - This repository consumes the observability platform through the reusable workflow interface.
+          - The standard deploy path keeps \`instrumentation_mode=code\` and enables the managed suite automatically.
           - The deploy job persists validation, plan, and bindings payloads from the platform workflow before applying Terraform.
           - Terraform injects the generated AWS Lambda bindings into every application Lambda in this stack.
           EOF

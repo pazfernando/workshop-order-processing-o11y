@@ -28,6 +28,8 @@ Ese contrato describe la intención del workload. No define cómo se materializa
 
 En este repo el contrato se entrega al workflow reusable del IDP, y el deploy consume su `bindings.json` para propagar variables de entorno, layers y managed policies a las Lambdas.
 
+Con el modelo actual del IDP, ese contrato también debe alinearse a métricas gobernadas por preset. Para este workload el preset soportado es `serverless-api`.
+
 ## Validación local
 
 Puedes validar la infraestructura propia de la app así:
@@ -45,32 +47,29 @@ El workflow [deploy.yml](/Users/pazfernando/Documents/projects/windsurf/workshop
 - llama al reusable workflow `pazfernando/workshop-idp-o11y/.github/workflows/contract-consumer.yml@main`
 - delega en la plataforma la validación del contrato, el plan y la generación de bindings
 - por defecto pide a la plataforma que despliegue primero la managed suite
+- fija `instrumentation_mode` en `code`
 - persiste `validation.txt`, `plan.json` y `bindings.json` en `build/observability/`
 - transforma `bindings.json` en un archivo `terraform.tfvars.json`
 - reconcilia el state de Terraform importando recursos AWS del stack si ya existen
 - despliega la app con Terraform
 - no crea plataforma de observabilidad compartida
 
-## Inputs de CD para el reusable workflow
+## Inputs visibles del deploy
 
-Los principales inputs expuestos por este repo al `workflow_dispatch` son:
+El `workflow_dispatch` expone solo inputs operativos de la app:
 
 | Input | Uso |
 | :--- | :--- |
-| `observability_instrumentation_mode` | `code` o `adot_layer`; default `code` |
-| `observability_collector_endpoint` | Endpoint base OTLP para collector mode |
-| `observability_direct_endpoint` | Endpoint base OTLP para direct mode |
-| `observability_emf_compatibility_mode` | Compatibilidad EMF en bindings AWS Lambda; default `true` |
-| `deploy_managed_suite` | Si la plataforma debe desplegar primero su managed suite; default `true` |
-| `managed_suite_name` | Nombre base de la managed suite |
-| `managed_suite_grafana_allowed_cidrs` | CIDRs para acceso a Grafana |
-| `managed_suite_otlp_allowed_cidrs` | CIDRs para acceso a OTLP |
-| `managed_suite_ssh_allowed_cidrs` | CIDRs para acceso SSH |
+| `resource_prefix` | Prefijo de recursos y nombres del stack. |
+| `payment_failure_mode` | Modo de falla del simulador de pagos. |
+| `log_retention_in_days` | Retención de logs de CloudWatch. |
+
+Los parámetros OTLP, ADOT, EMF y de managed suite ya no forman parte de la interfaz normal del consumidor en este repo. Quedan resueltos por defaults del IDP o por variables internas del entorno GitHub.
 
 Credenciales:
 
 - el reusable workflow usa `secrets: inherit`
-- si `deploy_managed_suite=true`, deben existir `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y opcionalmente `AWS_SESSION_TOKEN`
+- el camino estándar despliega managed suite automáticamente, por lo que deben existir `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y opcionalmente `AWS_SESSION_TOKEN`
 - opcionalmente `OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD`
 
 ## Outputs consumidos downstream
@@ -84,6 +83,13 @@ El job `deploy` consume estos outputs del reusable workflow:
 - `managed_suite_grafana_url`
 - `managed_suite_otlp_http_endpoint`
 - `effective_collector_endpoint`
+- `effective_collector_source`
+
+## Latencia y percentiles
+
+La latencia observable del workload se modela con `HttpServerRequestDuration`, alineada al preset `serverless-api`.
+
+`p99` no es una métrica contractual separada. Es un percentil derivado sobre `HttpServerRequestDuration`, normalmente calculado en el dashboard o backend de observabilidad y filtrable por `POST /orders`.
 
 ## Forma esperada de `bindings.json`
 
