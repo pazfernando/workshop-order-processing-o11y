@@ -31,25 +31,50 @@ on:
 
 jobs:
   observability:
-    uses: pazfernando/workshop-idp-o11y/.github/workflows/contract-consumer.yml@main
-    with:
-      contract_path: contracts/observability/order-processing.observability.yaml
-      upload_artifacts: true
-      generate_bindings: true
-      bindings_target: aws-lambda
-      instrumentation_mode: code
-      deploy_managed_suite: true
-      aws_region: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'us-east-1' }}
-      managed_suite_name: ${{ vars.MANAGED_SUITE_NAME != '' && vars.MANAGED_SUITE_NAME || 'order-processing-o11y' }}
-      managed_suite_subnet_id: ${{ vars.MANAGED_SUITE_SUBNET_ID || '' }}
-      managed_suite_instance_type: ${{ vars.MANAGED_SUITE_INSTANCE_TYPE != '' && vars.MANAGED_SUITE_INSTANCE_TYPE || 't3.small' }}
-      managed_suite_root_volume_size_gb: ${{ fromJSON(vars.MANAGED_SUITE_ROOT_VOLUME_SIZE_GB != '' && vars.MANAGED_SUITE_ROOT_VOLUME_SIZE_GB || '20') }}
-      managed_suite_dashboard_uid: ${{ vars.MANAGED_SUITE_DASHBOARD_UID != '' && vars.MANAGED_SUITE_DASHBOARD_UID || 'platform-observability' }}
-      managed_suite_dashboard_title: ${{ vars.MANAGED_SUITE_DASHBOARD_TITLE != '' && vars.MANAGED_SUITE_DASHBOARD_TITLE || 'Platform Observability' }}
-      managed_suite_grafana_allowed_cidrs: ${{ vars.MANAGED_SUITE_GRAFANA_ALLOWED_CIDRS != '' && vars.MANAGED_SUITE_GRAFANA_ALLOWED_CIDRS || '["0.0.0.0/0"]' }}
-      managed_suite_otlp_allowed_cidrs: ${{ vars.MANAGED_SUITE_OTLP_ALLOWED_CIDRS != '' && vars.MANAGED_SUITE_OTLP_ALLOWED_CIDRS || '["0.0.0.0/0"]' }}
-      managed_suite_ssh_allowed_cidrs: ${{ vars.MANAGED_SUITE_SSH_ALLOWED_CIDRS != '' && vars.MANAGED_SUITE_SSH_ALLOWED_CIDRS || '[]' }}
-    secrets: inherit
+    runs-on: ubuntu-latest
+    environment: aws-dev
+    permissions:
+      contents: read
+    outputs:
+      validation_message: ${{ steps.contract-consumer.outputs.validation_message }}
+      plan_json: ${{ steps.contract-consumer.outputs.plan_json }}
+      bindings_json: ${{ steps.contract-consumer.outputs.bindings_json }}
+      managed_suite_enabled: ${{ steps.contract-consumer.outputs.managed_suite_enabled }}
+      managed_suite_grafana_url: ${{ steps.contract-consumer.outputs.managed_suite_grafana_url }}
+      managed_suite_otlp_http_endpoint: ${{ steps.contract-consumer.outputs.managed_suite_otlp_http_endpoint }}
+      effective_collector_endpoint: ${{ steps.contract-consumer.outputs.effective_collector_endpoint }}
+      effective_collector_source: ${{ steps.contract-consumer.outputs.effective_collector_source }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run contract consumer
+        id: contract-consumer
+        uses: pazfernando/workshop-idp-o11y/.github/actions/contract-consumer@main
+        with:
+          contract_path: contracts/observability/order-processing.observability.yaml
+          upload_artifacts: true
+          generate_bindings: true
+          bindings_target: aws-lambda
+          instrumentation_mode: code
+          deploy_managed_suite: true
+          aws_region: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'us-east-1' }}
+          managed_suite_name: ${{ vars.MANAGED_SUITE_NAME != '' && vars.MANAGED_SUITE_NAME || 'order-processing-o11y' }}
+          managed_suite_subnet_id: ${{ vars.MANAGED_SUITE_SUBNET_ID || '' }}
+          managed_suite_instance_type: ${{ vars.MANAGED_SUITE_INSTANCE_TYPE != '' && vars.MANAGED_SUITE_INSTANCE_TYPE || 't3.small' }}
+          managed_suite_root_volume_size_gb: ${{ fromJSON(vars.MANAGED_SUITE_ROOT_VOLUME_SIZE_GB != '' && vars.MANAGED_SUITE_ROOT_VOLUME_SIZE_GB || '20') }}
+          managed_suite_dashboard_uid: ${{ vars.MANAGED_SUITE_DASHBOARD_UID != '' && vars.MANAGED_SUITE_DASHBOARD_UID || 'platform-observability' }}
+          managed_suite_dashboard_title: ${{ vars.MANAGED_SUITE_DASHBOARD_TITLE != '' && vars.MANAGED_SUITE_DASHBOARD_TITLE || 'Platform Observability' }}
+          managed_suite_grafana_allowed_cidrs: ${{ vars.MANAGED_SUITE_GRAFANA_ALLOWED_CIDRS != '' && vars.MANAGED_SUITE_GRAFANA_ALLOWED_CIDRS || '["0.0.0.0/0"]' }}
+          managed_suite_otlp_allowed_cidrs: ${{ vars.MANAGED_SUITE_OTLP_ALLOWED_CIDRS != '' && vars.MANAGED_SUITE_OTLP_ALLOWED_CIDRS || '["0.0.0.0/0"]' }}
+          managed_suite_ssh_allowed_cidrs: ${{ vars.MANAGED_SUITE_SSH_ALLOWED_CIDRS != '' && vars.MANAGED_SUITE_SSH_ALLOWED_CIDRS || '[]' }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD: ${{ secrets.OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD }}
+          TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+          TF_STATE_KEY: ${{ vars.TF_STATE_KEY }}
 
   deploy:
     needs: observability
@@ -475,7 +500,7 @@ jobs:
 
           ## Notes
 
-          - This repository consumes the observability platform through the reusable workflow interface.
+          - This repository consumes the observability platform through the composite action interface.
           - The standard deploy path keeps \`instrumentation_mode=code\` and enables the managed suite automatically.
           - The deploy job persists validation, plan, and bindings payloads from the platform workflow before applying Terraform.
           - Terraform injects the generated AWS Lambda bindings into every application Lambda in this stack.

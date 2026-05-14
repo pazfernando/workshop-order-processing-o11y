@@ -7,7 +7,7 @@ Guía de consumo de observabilidad para este repo.
 `workshop-order-processing` ya no provisiona la plataforma de observabilidad. Este repo solo:
 
 - versiona su contrato de observabilidad
-- consume el reusable workflow del IDP
+- consume la composite action del IDP
 - despliega la aplicación usando los bindings generados por la plataforma
 
 La plataforma externa es responsable de toda la implementación observability:
@@ -26,7 +26,7 @@ Contrato activo:
 
 Ese contrato describe la intención del workload. No define cómo se materializa la plataforma ni obliga a que la aplicación embeba SDKs de observabilidad.
 
-En este repo el contrato se entrega al workflow reusable del IDP, y el deploy consume su `bindings.json` para propagar variables de entorno, layers y managed policies a las Lambdas.
+En este repo el contrato se entrega a la composite action del IDP, y el deploy consume su `bindings.json` para propagar variables de entorno, layers y managed policies a las Lambdas.
 
 Con el modelo actual del IDP, ese contrato también debe alinearse a métricas gobernadas por preset. Para este workload el preset soportado es `serverless-api`.
 
@@ -44,7 +44,7 @@ terraform -chdir=infra/terraform validate
 
 El workflow [deploy.yml](/Users/pazfernando/Documents/projects/windsurf/workshop-order-processing/.github/workflows/deploy.yml):
 
-- llama al reusable workflow `pazfernando/workshop-idp-o11y/.github/workflows/contract-consumer.yml@main`
+- ejecuta la composite action `pazfernando/workshop-idp-o11y/.github/actions/contract-consumer@main`
 - delega en la plataforma la validación del contrato, el plan y la generación de bindings
 - por defecto pide a la plataforma que despliegue primero la managed suite
 - fija `instrumentation_mode` en `code`
@@ -68,13 +68,14 @@ Los parámetros OTLP, ADOT, EMF y de managed suite ya no forman parte de la inte
 
 Credenciales:
 
-- el reusable workflow usa `secrets: inherit`
+- el job `observability` corre con `environment: aws-dev`
+- la composite action recibe los secrets ya resueltos en el contexto del caller
 - el camino estándar despliega managed suite automáticamente, por lo que deben existir `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y opcionalmente `AWS_SESSION_TOKEN`
 - opcionalmente `OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD`
 
 ## Outputs consumidos downstream
 
-El job `deploy` consume estos outputs del reusable workflow:
+El job `deploy` consume estos outputs del job `observability`, que a su vez expone los outputs de la composite action:
 
 - `validation_message`
 - `plan_json`

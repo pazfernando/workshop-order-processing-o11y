@@ -6,7 +6,7 @@ Este repositorio contiene la aplicación `workshop-order-processing`. La platafo
 
 - la aplicación
 - su contrato de observabilidad
-- la integración con el workflow reusable del IDP
+- la integración con la composite action del IDP
 
 ## Arquitectura
 
@@ -28,7 +28,7 @@ Se mantiene:
 - propagación de `correlationId` entre API, EventBridge, `order-processor` y `payment-simulator`
 - respuestas API con `x-correlation-id`
 - contrato versionado para el IDP externo
-- integración de CD con el reusable workflow del IDP
+- integración de CD con la composite action del IDP
 - consumo de `bindings.json` para inyectar configuración de runtime en Terraform
 
 No se mantiene aquí:
@@ -40,7 +40,7 @@ No se mantiene aquí:
 El camino estándar de despliegue mantiene la integración simple:
 
 - `deploy.yml` fija `instrumentation_mode` en `code`
-- `deploy.yml` pide al reusable workflow del IDP desplegar automáticamente la managed suite
+- `deploy.yml` pide a la composite action del IDP desplegar automáticamente la managed suite
 - los parámetros OTLP, ADOT, EMF y de managed suite quedan como detalle interno del flujo, no como inputs normales del usuario
 
 ## Metric Catalog
@@ -63,9 +63,9 @@ Para latencia, la métrica contractual base es `HttpServerRequestDuration`. Perc
 El flujo esperado es:
 
 1. este repo versiona su contrato de observabilidad
-2. el pipeline de CD llama al reusable workflow del IDP
-3. el workflow del IDP valida el contrato, construye el plan y genera `bindings.json`
-4. por defecto, el workflow del IDP despliega primero la managed suite y reutiliza su OTLP endpoint para resolver collector mode
+2. el pipeline de CD ejecuta la composite action del IDP desde un job normal del caller
+3. la action del IDP valida el contrato, construye el plan y genera `bindings.json`
+4. por defecto, la action del IDP despliega primero la managed suite y reutiliza su OTLP endpoint para resolver collector mode
 5. este repo despliega la app consumiendo esos bindings en Terraform
 
 ## Desarrollo
@@ -96,10 +96,10 @@ Workflows:
 `deploy.yml` consume la plataforma de observabilidad usando:
 
 - el contrato versionado en este repo
-- un job reusable hacia `pazfernando/workshop-idp-o11y/.github/workflows/contract-consumer.yml@main`
+- un job `observability` que ejecuta `pazfernando/workshop-idp-o11y/.github/actions/contract-consumer@main`
 - un `workflow_dispatch` reducido a inputs operativos de la app, no a knobs internos del IDP
 - `instrumentation_mode=code` fijado en el workflow
-- managed suite automática resuelta por el reusable workflow del IDP
+- managed suite automática resuelta por la composite action del IDP
 - `bindings.json` generado por la plataforma y persistido en `build/observability/`
 - Terraform para recursos propios de la aplicación y para inyectar los bindings resultantes en las Lambdas
 - una reconciliación previa del state para importar recursos AWS preexistentes del stack antes del `terraform apply`
