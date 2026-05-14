@@ -99,10 +99,10 @@ jobs:
 
           RUN_ID=""
           for _ in $(seq 1 30); do
-            RUN_ID="$(gh api repos/pazfernando/workshop-idp-o11y/actions/workflows/publish-caller-dashboard.yml/runs \
+            RUN_ID="$(gh api repos/pazfernando/workshop-idp-o11y/actions/runs \
               -f event=repository_dispatch \
-              -f per_page=20 \
-              --jq '.workflow_runs[] | select(.display_title | contains("'"$DISPATCH_ID"'")) | .id' | head -n1)"
+              -f per_page=30 \
+              --jq '.workflow_runs[] | select(.name == "Publish Caller Dashboard") | select(.display_title | contains("'"$DISPATCH_ID"'")) | .id' | head -n1)"
             if [ -n "$RUN_ID" ]; then
               break
             fi
