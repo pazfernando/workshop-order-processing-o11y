@@ -92,6 +92,7 @@ Secretos de GitHub esperados por el deploy:
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
 - opcionalmente `AWS_SESSION_TOKEN`
+- `GH_PAT_O11Y` para disparar el workflow host-side que publica dashboards Grafana por caller
 
 ## CI/CD
 

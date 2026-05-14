@@ -72,6 +72,7 @@ Credenciales:
 - el job `observability` corre con `environment: aws-dev`
 - la composite action recibe los secrets ya resueltos en el contexto del caller
 - el camino estándar reutiliza la managed suite existente y necesita `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y opcionalmente `AWS_SESSION_TOKEN` para leer su state y consumir sus outputs
+- `GH_PAT_O11Y` para disparar por `repository_dispatch` el workflow host-side en `workshop-idp-o11y`
 
 El password de Grafana ya no viaja desde el caller. El workflow host-side `publish-caller-dashboard.yml` corre en `workshop-idp-o11y` y toma `OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD` directamente de los secrets del host.
 
