@@ -41,6 +41,8 @@ El camino estándar de despliegue mantiene la integración simple:
 
 - `deploy.yml` fija `instrumentation_mode` en `code`
 - `deploy.yml` reutiliza una managed suite ya existente a través de la composite action del IDP
+- `deploy.yml` publica un dashboard Grafana específico del caller sobre esa suite reutilizada
+- Terraform crea un dashboard CloudWatch específico del workload en la cuenta del caller
 - los parámetros OTLP, ADOT, EMF y de managed suite quedan como detalle interno del flujo, no como inputs normales del usuario
 
 ## Metric Catalog

@@ -47,11 +47,12 @@ El workflow [deploy.yml](/Users/pazfernando/Documents/projects/windsurf/workshop
 - ejecuta la composite action `pazfernando/workshop-idp-o11y/.github/actions/contract-consumer@main`
 - delega en la plataforma la validación del contrato, el plan y la generación de bindings
 - por defecto reutiliza la managed suite ya existente y consume sus outputs
+- publica o actualiza un dashboard Grafana por caller sobre la suite reutilizada
 - fija `instrumentation_mode` en `code`
 - persiste `validation.txt`, `plan.json` y `bindings.json` en `build/observability/`
 - transforma `bindings.json` en un archivo `terraform.tfvars.json`
 - reconcilia el state de Terraform importando recursos AWS del stack si ya existen
-- despliega la app con Terraform
+- despliega la app con Terraform, incluyendo un dashboard CloudWatch por workload
 - no crea plataforma de observabilidad compartida
 
 ## Inputs visibles del deploy
@@ -82,6 +83,7 @@ El job `deploy` consume estos outputs del job `observability`, que a su vez expo
 - `bindings_json`
 - `managed_suite_enabled`
 - `managed_suite_grafana_url`
+- `caller_grafana_dashboard_url`
 - `managed_suite_otlp_http_endpoint`
 - `effective_collector_endpoint`
 - `effective_collector_source`

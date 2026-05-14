@@ -18,6 +18,21 @@ output "api_access_log_group_name" {
   value       = aws_cloudwatch_log_group.api_access.name
 }
 
+output "workload_service_instance_id" {
+  description = "Stable service.instance.id injected into OTEL resource attributes for this deployment."
+  value       = local.name_prefix
+}
+
+output "cloudwatch_dashboard_name" {
+  description = "CloudWatch dashboard name for this workload."
+  value       = aws_cloudwatch_dashboard.observability.dashboard_name
+}
+
+output "cloudwatch_dashboard_url" {
+  description = "CloudWatch dashboard URL for this workload."
+  value       = "https://${var.aws_region}.console.aws.amazon.com/cloudwatch/home?region=${var.aws_region}#dashboards:name=${aws_cloudwatch_dashboard.observability.dashboard_name}"
+}
+
 output "observability_instrumentation_mode" {
   description = "Instrumentation mode resolved from the observability bindings payload."
   value       = try(local.otel_instrumentation.mode, "")

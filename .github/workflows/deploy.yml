@@ -41,12 +41,41 @@ jobs:
       bindings_json: ${{ steps.contract-consumer.outputs.bindings_json }}
       managed_suite_enabled: ${{ steps.contract-consumer.outputs.managed_suite_enabled }}
       managed_suite_grafana_url: ${{ steps.contract-consumer.outputs.managed_suite_grafana_url }}
+      caller_grafana_dashboard_url: ${{ steps.contract-consumer.outputs.caller_grafana_dashboard_url }}
       managed_suite_otlp_http_endpoint: ${{ steps.contract-consumer.outputs.managed_suite_otlp_http_endpoint }}
       effective_collector_endpoint: ${{ steps.contract-consumer.outputs.effective_collector_endpoint }}
       effective_collector_source: ${{ steps.contract-consumer.outputs.effective_collector_source }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Resolve observability asset names
+        id: observability-names
+        env:
+          STACK_NAME: ${{ vars.STACK_NAME != '' && vars.STACK_NAME || 'observability-business-case' }}
+          RESOURCE_PREFIX: ${{ inputs.resource_prefix != '' && inputs.resource_prefix || vars.RESOURCE_PREFIX || 'aws-dev-1' }}
+        run: |
+          set -euo pipefail
+          EFFECTIVE_STACK_NAME="$STACK_NAME"
+          if [ -n "$RESOURCE_PREFIX" ]; then
+            EFFECTIVE_STACK_NAME="${RESOURCE_PREFIX}-${STACK_NAME}"
+          fi
+
+          SLUG="$(printf '%s' "$EFFECTIVE_STACK_NAME" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9-' '-')"
+          SLUG="${SLUG#-}"
+          SLUG="${SLUG%-}"
+          DASHBOARD_UID="${SLUG}-grafana"
+          if [ "${#DASHBOARD_UID}" -gt 40 ]; then
+            HASH="$(printf '%s' "$DASHBOARD_UID" | shasum -a 256 | cut -c1-8)"
+            DASHBOARD_UID="${DASHBOARD_UID:0:31}-${HASH}"
+            DASHBOARD_UID="${DASHBOARD_UID%-}"
+          fi
+
+          {
+            echo "caller_identifier=$SLUG"
+            echo "caller_dashboard_uid=$DASHBOARD_UID"
+            echo "caller_dashboard_title=${EFFECTIVE_STACK_NAME} Observability"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Run contract consumer
         id: contract-consumer
@@ -60,6 +89,7 @@ jobs:
           deploy_managed_suite: false
           reuse_managed_suite: true
           aws_region: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'us-east-1' }}
+          managed_suite_name: ${{ vars.MANAGED_SUITE_NAME != '' && vars.MANAGED_SUITE_NAME || 'order-processing-o11y' }}
           managed_suite_subnet_id: ${{ vars.MANAGED_SUITE_SUBNET_ID || '' }}
           managed_suite_instance_type: ${{ vars.MANAGED_SUITE_INSTANCE_TYPE != '' && vars.MANAGED_SUITE_INSTANCE_TYPE || 't3.small' }}
           managed_suite_root_volume_size_gb: ${{ fromJSON(vars.MANAGED_SUITE_ROOT_VOLUME_SIZE_GB != '' && vars.MANAGED_SUITE_ROOT_VOLUME_SIZE_GB || '20') }}
@@ -68,6 +98,10 @@ jobs:
           managed_suite_grafana_allowed_cidrs: ${{ vars.MANAGED_SUITE_GRAFANA_ALLOWED_CIDRS != '' && vars.MANAGED_SUITE_GRAFANA_ALLOWED_CIDRS || '["0.0.0.0/0"]' }}
           managed_suite_otlp_allowed_cidrs: ${{ vars.MANAGED_SUITE_OTLP_ALLOWED_CIDRS != '' && vars.MANAGED_SUITE_OTLP_ALLOWED_CIDRS || '["0.0.0.0/0"]' }}
           managed_suite_ssh_allowed_cidrs: ${{ vars.MANAGED_SUITE_SSH_ALLOWED_CIDRS != '' && vars.MANAGED_SUITE_SSH_ALLOWED_CIDRS || '[]' }}
+          caller_identifier: ${{ steps.observability-names.outputs.caller_identifier }}
+          caller_dashboard_uid: ${{ steps.observability-names.outputs.caller_dashboard_uid }}
+          caller_dashboard_title: ${{ steps.observability-names.outputs.caller_dashboard_title }}
+          publish_caller_grafana_dashboard: true
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -429,6 +463,9 @@ jobs:
           ORDERS_TABLE_NAME="$(terraform -chdir=infra/terraform output -raw orders_table_name)"
           PAYMENT_SIMULATOR_NAME="$(terraform -chdir=infra/terraform output -raw payment_simulator_name)"
           API_ACCESS_LOG_GROUP_NAME="$(terraform -chdir=infra/terraform output -raw api_access_log_group_name)"
+          CLOUDWATCH_DASHBOARD_NAME="$(terraform -chdir=infra/terraform output -raw cloudwatch_dashboard_name)"
+          CLOUDWATCH_DASHBOARD_URL="$(terraform -chdir=infra/terraform output -raw cloudwatch_dashboard_url)"
+          WORKLOAD_SERVICE_INSTANCE_ID="$(terraform -chdir=infra/terraform output -raw workload_service_instance_id)"
           OBSERVABILITY_INSTRUMENTATION_MODE="$(terraform -chdir=infra/terraform output -raw observability_instrumentation_mode || true)"
           EFFECTIVE_OTLP_BASE_ENDPOINT="$(terraform -chdir=infra/terraform output -raw effective_otlp_base_endpoint || true)"
           EFFECTIVE_OTLP_TRACES_ENDPOINT="$(terraform -chdir=infra/terraform output -raw effective_otlp_traces_endpoint || true)"
@@ -462,6 +499,9 @@ jobs:
           | Orders Table | \`${ORDERS_TABLE_NAME}\` |
           | Payment Simulator Lambda | \`${PAYMENT_SIMULATOR_NAME}\` |
           | API Access Log Group | \`${API_ACCESS_LOG_GROUP_NAME}\` |
+          | OTEL service.instance.id | \`${WORKLOAD_SERVICE_INSTANCE_ID}\` |
+          | CloudWatch Dashboard | \`${CLOUDWATCH_DASHBOARD_NAME}\` |
+          | CloudWatch Dashboard URL | \`${CLOUDWATCH_DASHBOARD_URL}\` |
           | Observability Contract | \`${OBSERVABILITY_CONTRACT_PATH}\` |
 
           ## Observability Workflow Outputs
@@ -471,6 +511,7 @@ jobs:
           | Validation message | \`${{ needs.observability.outputs.validation_message }}\` |
           | Managed suite enabled | \`${{ needs.observability.outputs.managed_suite_enabled }}\` |
           | Managed suite Grafana URL | \`${{ needs.observability.outputs.managed_suite_grafana_url }}\` |
+          | Caller Grafana Dashboard URL | \`${{ needs.observability.outputs.caller_grafana_dashboard_url }}\` |
           | Managed suite OTLP HTTP endpoint | \`${{ needs.observability.outputs.managed_suite_otlp_http_endpoint }}\` |
           | Effective collector endpoint | \`${{ needs.observability.outputs.effective_collector_endpoint }}\` |
           | Effective collector source | \`${{ needs.observability.outputs.effective_collector_source }}\` |
@@ -500,9 +541,9 @@ jobs:
           ## Notes
 
           - This repository consumes the observability platform through the composite action interface.
-          - The standard deploy path keeps \`instrumentation_mode=code\` and enables the managed suite automatically.
+          - The standard deploy path keeps \`instrumentation_mode=code\`, reuses the managed suite, and publishes a caller-specific Grafana dashboard.
           - The deploy job persists validation, plan, and bindings payloads from the platform workflow before applying Terraform.
-          - Terraform injects the generated AWS Lambda bindings into every application Lambda in this stack.
+          - Terraform injects the generated AWS Lambda bindings into every application Lambda in this stack and creates a CloudWatch dashboard for the workload.
           EOF
 
       - name: Upload deployment profile artifact

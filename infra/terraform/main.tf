@@ -39,20 +39,26 @@ locals {
   payment_simulator_function_name = "${local.name_prefix}-payment-simulator"
   order_processor_function_name   = "${local.name_prefix}-order-processor"
   api_access_log_group_name       = "/aws/apigateway/${local.name_prefix}-http-api-access"
+  cloudwatch_dashboard_name       = "${local.name_prefix}-observability"
   lambda_log_group_names = {
     create_order      = "/aws/lambda/${local.create_order_function_name}"
     get_order         = "/aws/lambda/${local.get_order_function_name}"
     payment_simulator = "/aws/lambda/${local.payment_simulator_function_name}"
     order_processor   = "/aws/lambda/${local.order_processor_function_name}"
   }
-  event_bus_arn          = "arn:${data.aws_partition.current.partition}:events:${var.aws_region}:${data.aws_caller_identity.current.account_id}:event-bus/default"
-  deployment_environment = local.normalized_resource_prefix != "" ? local.normalized_resource_prefix : "local"
-  otel_bindings          = try(jsondecode(var.otel_bindings_json), null)
-  otel_environment       = try(local.otel_bindings.environment, {})
-  otel_layers            = try(local.otel_bindings.layers, [])
-  otel_managed_policies  = try(local.otel_bindings.managedPolicies, [])
-  otel_instrumentation   = try(local.otel_bindings.instrumentation, {})
-  otel_outputs           = try(local.otel_bindings.outputs, {})
+  event_bus_arn                      = "arn:${data.aws_partition.current.partition}:events:${var.aws_region}:${data.aws_caller_identity.current.account_id}:event-bus/default"
+  deployment_environment             = local.normalized_resource_prefix != "" ? local.normalized_resource_prefix : "local"
+  otel_bindings                      = try(jsondecode(var.otel_bindings_json), null)
+  otel_environment                   = try(local.otel_bindings.environment, {})
+  base_otel_resource_attributes      = try(local.otel_environment.OTEL_RESOURCE_ATTRIBUTES, "")
+  effective_otel_resource_attributes = local.base_otel_resource_attributes != "" ? "${local.base_otel_resource_attributes},service.instance.id=${local.name_prefix}" : "service.instance.id=${local.name_prefix}"
+  effective_otel_environment = merge(local.otel_environment, {
+    OTEL_RESOURCE_ATTRIBUTES = local.effective_otel_resource_attributes
+  })
+  otel_layers           = try(local.otel_bindings.layers, [])
+  otel_managed_policies = try(local.otel_bindings.managedPolicies, [])
+  otel_instrumentation  = try(local.otel_bindings.instrumentation, {})
+  otel_outputs          = try(local.otel_bindings.outputs, {})
   lambda_role_names = {
     create_order      = aws_iam_role.create_order.name
     get_order         = aws_iam_role.get_order.name
@@ -70,6 +76,133 @@ locals {
       ]
     ]) : attachment.key => attachment
   }
+}
+
+resource "aws_cloudwatch_dashboard" "observability" {
+  dashboard_name = local.cloudwatch_dashboard_name
+
+  dashboard_body = jsonencode({
+    widgets = [
+      {
+        type   = "metric"
+        x      = 0
+        y      = 0
+        width  = 12
+        height = 6
+        properties = {
+          title   = "API Request Volume"
+          view    = "timeSeries"
+          region  = var.aws_region
+          stat    = "Sum"
+          period  = 300
+          stacked = false
+          metrics = [
+            ["AWS/ApiGateway", "Count", "ApiId", aws_apigatewayv2_api.orders.id]
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 12
+        y      = 0
+        width  = 12
+        height = 6
+        properties = {
+          title   = "API Error Rates"
+          view    = "timeSeries"
+          region  = var.aws_region
+          stat    = "Sum"
+          period  = 300
+          stacked = false
+          metrics = [
+            ["AWS/ApiGateway", "4xx", "ApiId", aws_apigatewayv2_api.orders.id],
+            [".", "5xx", ".", "."]
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 0
+        y      = 6
+        width  = 12
+        height = 6
+        properties = {
+          title   = "API Latency"
+          view    = "timeSeries"
+          region  = var.aws_region
+          stat    = "p99"
+          period  = 300
+          stacked = false
+          metrics = [
+            ["AWS/ApiGateway", "Latency", "ApiId", aws_apigatewayv2_api.orders.id],
+            [".", "IntegrationLatency", ".", ".", { "stat" = "p95", "label" = "Integration p95" }]
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 12
+        y      = 6
+        width  = 12
+        height = 6
+        properties = {
+          title   = "Lambda Errors"
+          view    = "timeSeries"
+          region  = var.aws_region
+          stat    = "Sum"
+          period  = 300
+          stacked = false
+          metrics = [
+            ["AWS/Lambda", "Errors", "FunctionName", aws_lambda_function.create_order.function_name, { "label" = "create-order" }],
+            [".", ".", ".", aws_lambda_function.get_order.function_name, { "label" = "get-order" }],
+            [".", ".", ".", aws_lambda_function.order_processor.function_name, { "label" = "order-processor" }],
+            [".", ".", ".", aws_lambda_function.payment_simulator.function_name, { "label" = "payment-simulator" }]
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 0
+        y      = 12
+        width  = 12
+        height = 6
+        properties = {
+          title   = "Lambda Duration"
+          view    = "timeSeries"
+          region  = var.aws_region
+          stat    = "p95"
+          period  = 300
+          stacked = false
+          metrics = [
+            ["AWS/Lambda", "Duration", "FunctionName", aws_lambda_function.create_order.function_name, { "label" = "create-order" }],
+            [".", ".", ".", aws_lambda_function.get_order.function_name, { "label" = "get-order" }],
+            [".", ".", ".", aws_lambda_function.order_processor.function_name, { "label" = "order-processor" }],
+            [".", ".", ".", aws_lambda_function.payment_simulator.function_name, { "label" = "payment-simulator" }]
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 12
+        y      = 12
+        width  = 12
+        height = 6
+        properties = {
+          title   = "DynamoDB Orders"
+          view    = "timeSeries"
+          region  = var.aws_region
+          stat    = "Sum"
+          period  = 300
+          stacked = false
+          metrics = [
+            ["AWS/DynamoDB", "SuccessfulRequestLatency", "TableName", aws_dynamodb_table.orders.name, { "stat" = "p95", "label" = "SuccessfulRequestLatency p95" }],
+            [".", "ConsumedReadCapacityUnits", ".", ".", { "stat" = "Sum", "label" = "Read capacity" }],
+            [".", "ConsumedWriteCapacityUnits", ".", ".", { "stat" = "Sum", "label" = "Write capacity" }]
+          ]
+        }
+      }
+    ]
+  })
 }
 
 resource "aws_dynamodb_table" "orders" {
@@ -267,7 +400,7 @@ resource "aws_lambda_function" "create_order" {
         LOG_LEVEL         = "INFO"
         SERVICE_NAME      = "order-api"
       },
-      local.otel_environment
+      local.effective_otel_environment
     )
   }
 
@@ -297,7 +430,7 @@ resource "aws_lambda_function" "get_order" {
         LOG_LEVEL         = "INFO"
         SERVICE_NAME      = "order-api"
       },
-      local.otel_environment
+      local.effective_otel_environment
     )
   }
 
@@ -328,7 +461,7 @@ resource "aws_lambda_function" "payment_simulator" {
         PAYMENT_FAILURE_MODE = var.payment_failure_mode
         SERVICE_NAME         = "payment-simulator"
       },
-      local.otel_environment
+      local.effective_otel_environment
     )
   }
 
@@ -359,7 +492,7 @@ resource "aws_lambda_function" "order_processor" {
         PAYMENT_SIMULATOR_FUNCTION_NAME = aws_lambda_function.payment_simulator.function_name
         SERVICE_NAME                    = "order-processor"
       },
-      local.otel_environment
+      local.effective_otel_environment
     )
   }
 
