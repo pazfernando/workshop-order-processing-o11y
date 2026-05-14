@@ -86,16 +86,30 @@ jobs:
             exit 1
           fi
 
+          if ! gh api repos/pazfernando/workshop-idp-o11y >/dev/null 2>&1; then
+            echo "GH_PAT_O11Y cannot access repo pazfernando/workshop-idp-o11y. Verify the token owner, repository selection, and repo visibility." >&2
+            exit 1
+          fi
+
           DISPATCH_ID="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${CALLER_DASHBOARD_UID}"
+          PAYLOAD_PATH="${RUNNER_TEMP}/publish-caller-dashboard-dispatch.json"
+          cat > "$PAYLOAD_PATH" <<EOF
+          {
+            "event_type": "publish-caller-dashboard",
+            "client_payload": {
+              "dispatch_id": "${DISPATCH_ID}",
+              "managed_suite_name": "${MANAGED_SUITE_NAME}",
+              "aws_region": "${AWS_REGION}",
+              "caller_identifier": "${CALLER_IDENTIFIER}",
+              "caller_dashboard_uid": "${CALLER_DASHBOARD_UID}",
+              "caller_dashboard_title": "${CALLER_DASHBOARD_TITLE}"
+            }
+          }
+          EOF
+
           gh api repos/pazfernando/workshop-idp-o11y/dispatches \
             -X POST \
-            -f event_type=publish-caller-dashboard \
-            -f client_payload[dispatch_id]="$DISPATCH_ID" \
-            -f client_payload[managed_suite_name]="$MANAGED_SUITE_NAME" \
-            -f client_payload[aws_region]="$AWS_REGION" \
-            -f client_payload[caller_identifier]="$CALLER_IDENTIFIER" \
-            -f client_payload[caller_dashboard_uid]="$CALLER_DASHBOARD_UID" \
-            -f client_payload[caller_dashboard_title]="$CALLER_DASHBOARD_TITLE"
+            --input "$PAYLOAD_PATH"
 
           RUN_ID=""
           for _ in $(seq 1 30); do
