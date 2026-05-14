@@ -30,101 +30,7 @@ on:
         type: string
 
 jobs:
-  platform-assets:
-    runs-on: ubuntu-latest
-    environment: aws-dev
-    permissions:
-      contents: read
-    outputs:
-      caller_identifier: ${{ steps.observability-names.outputs.caller_identifier }}
-      caller_dashboard_uid: ${{ steps.observability-names.outputs.caller_dashboard_uid }}
-      caller_dashboard_title: ${{ steps.observability-names.outputs.caller_dashboard_title }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Resolve observability asset names
-        id: observability-names
-        env:
-          STACK_NAME: ${{ vars.STACK_NAME != '' && vars.STACK_NAME || 'observability-business-case' }}
-          RESOURCE_PREFIX: ${{ inputs.resource_prefix != '' && inputs.resource_prefix || vars.RESOURCE_PREFIX || 'aws-dev-1' }}
-        run: |
-          set -euo pipefail
-          EFFECTIVE_STACK_NAME="$STACK_NAME"
-          if [ -n "$RESOURCE_PREFIX" ]; then
-            EFFECTIVE_STACK_NAME="${RESOURCE_PREFIX}-${STACK_NAME}"
-          fi
-
-          SLUG="$(printf '%s' "$EFFECTIVE_STACK_NAME" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9-' '-')"
-          SLUG="${SLUG#-}"
-          SLUG="${SLUG%-}"
-          DASHBOARD_UID="${SLUG}-grafana"
-          if [ "${#DASHBOARD_UID}" -gt 40 ]; then
-            HASH="$(printf '%s' "$DASHBOARD_UID" | shasum -a 256 | cut -c1-8)"
-            DASHBOARD_UID="${DASHBOARD_UID:0:31}-${HASH}"
-            DASHBOARD_UID="${DASHBOARD_UID%-}"
-          fi
-
-          {
-            echo "caller_identifier=$SLUG"
-            echo "caller_dashboard_uid=$DASHBOARD_UID"
-            echo "caller_dashboard_title=${EFFECTIVE_STACK_NAME} Observability"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Dispatch caller dashboard publication
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT_O11Y }}
-          AWS_REGION: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'us-east-1' }}
-          MANAGED_SUITE_NAME: ${{ vars.MANAGED_SUITE_NAME != '' && vars.MANAGED_SUITE_NAME || 'order-processing-o11y' }}
-          CALLER_IDENTIFIER: ${{ steps.observability-names.outputs.caller_identifier }}
-          CALLER_DASHBOARD_UID: ${{ steps.observability-names.outputs.caller_dashboard_uid }}
-          CALLER_DASHBOARD_TITLE: ${{ steps.observability-names.outputs.caller_dashboard_title }}
-        run: |
-          set -euo pipefail
-          if [ -z "$GH_TOKEN" ]; then
-            echo "GH_PAT_O11Y must be configured in the caller secrets to dispatch the host workflow." >&2
-            exit 1
-          fi
-
-          if ! gh api repos/pazfernando/workshop-idp-o11y >/dev/null 2>&1; then
-            echo "GH_PAT_O11Y cannot access repo pazfernando/workshop-idp-o11y. Verify the token owner, repository selection, and repo visibility." >&2
-            exit 1
-          fi
-
-          DISPATCH_ID="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${CALLER_DASHBOARD_UID}"
-          PAYLOAD_PATH="${RUNNER_TEMP}/publish-caller-dashboard-dispatch.json"
-          cat > "$PAYLOAD_PATH" <<EOF
-          {
-            "event_type": "publish-caller-dashboard",
-            "client_payload": {
-              "dispatch_id": "${DISPATCH_ID}",
-              "managed_suite_name": "${MANAGED_SUITE_NAME}",
-              "aws_region": "${AWS_REGION}",
-              "caller_identifier": "${CALLER_IDENTIFIER}",
-              "caller_dashboard_uid": "${CALLER_DASHBOARD_UID}",
-              "caller_dashboard_title": "${CALLER_DASHBOARD_TITLE}"
-            }
-          }
-          EOF
-
-          HTTP_STATUS="$(
-            curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
-              --request POST \
-              --header "Accept: application/vnd.github+json" \
-              --header "Authorization: Bearer ${GH_TOKEN}" \
-              --header "X-GitHub-Api-Version: 2022-11-28" \
-              --url "https://api.github.com/repos/pazfernando/workshop-idp-o11y/dispatches" \
-              --data @"$PAYLOAD_PATH"
-          )"
-
-          if [ "$HTTP_STATUS" != "204" ]; then
-            echo "repository_dispatch failed for pazfernando/workshop-idp-o11y with HTTP status $HTTP_STATUS." >&2
-            exit 1
-          fi
-          echo "repository_dispatch accepted for pazfernando/workshop-idp-o11y (dispatch_id=${DISPATCH_ID})."
-
   observability:
-    needs: platform-assets
     runs-on: ubuntu-latest
     environment: aws-dev
     permissions:
@@ -170,9 +76,37 @@ jobs:
           TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
           TF_STATE_KEY: ${{ vars.TF_STATE_KEY }}
 
+      - name: Fail when collector mode cannot resolve an endpoint
+        env:
+          BINDINGS_JSON: ${{ steps.contract-consumer.outputs.bindings_json }}
+          EFFECTIVE_COLLECTOR_ENDPOINT: ${{ steps.contract-consumer.outputs.effective_collector_endpoint }}
+          MANAGED_SUITE_ENABLED: ${{ steps.contract-consumer.outputs.managed_suite_enabled }}
+        run: |
+          set -euo pipefail
+          EXPORT_STRATEGY="$(
+            node -e 'const payload = JSON.parse(process.env.BINDINGS_JSON || "{}"); process.stdout.write(String(payload.instrumentation?.exportStrategy || ""));'
+          )"
+
+          if [ "$EXPORT_STRATEGY" != "collector" ]; then
+            exit 0
+          fi
+
+          if [ -n "$EFFECTIVE_COLLECTOR_ENDPOINT" ]; then
+            exit 0
+          fi
+
+          echo "Collector mode was requested, but no collector endpoint was resolved." >&2
+          echo "This workflow now relies only on the contract-consumer composite action." >&2
+          if [ "$MANAGED_SUITE_ENABLED" = "true" ]; then
+            echo "Managed suite reuse was enabled, but it did not produce an OTLP endpoint." >&2
+          else
+            echo "No pre-existing managed Grafana suite was available to supply the collector endpoint." >&2
+          fi
+          echo "Provide an explicit collector URL in the platform path or ensure the managed suite already exists before running deploy." >&2
+          exit 1
+
   deploy:
     needs:
-      - platform-assets
       - observability
     runs-on: ubuntu-latest
     environment: aws-dev
@@ -574,7 +508,6 @@ jobs:
           | Validation message | \`${{ needs.observability.outputs.validation_message }}\` |
           | Managed suite enabled | \`${{ needs.observability.outputs.managed_suite_enabled }}\` |
           | Managed suite Grafana URL | \`${{ needs.observability.outputs.managed_suite_grafana_url }}\` |
-          | Caller Grafana Dashboard URL | \`${{ needs.observability.outputs.managed_suite_grafana_url }}/d/${{ needs.platform-assets.outputs.caller_dashboard_uid }}\` |
           | Managed suite OTLP HTTP endpoint | \`${{ needs.observability.outputs.managed_suite_otlp_http_endpoint }}\` |
           | Effective collector endpoint | \`${{ needs.observability.outputs.effective_collector_endpoint }}\` |
           | Effective collector source | \`${{ needs.observability.outputs.effective_collector_source }}\` |
@@ -604,7 +537,8 @@ jobs:
           ## Notes
 
           - This repository consumes the observability platform through the composite action interface.
-          - The standard deploy path keeps \`instrumentation_mode=code\`, reuses the managed suite, and requests a caller-specific Grafana dashboard through a host-side workflow hook.
+          - The standard deploy path keeps \`instrumentation_mode=code\` and reuses a pre-existing managed suite when collector mode needs a platform OTLP endpoint.
+          - If collector mode is requested and the platform cannot resolve an explicit collector URL or a pre-existing managed suite endpoint, the workflow fails before Terraform apply.
           - The deploy job persists validation, plan, and bindings payloads from the platform workflow before applying Terraform.
           - Terraform injects the generated AWS Lambda bindings into every application Lambda in this stack and creates a CloudWatch dashboard for the workload.
           EOF

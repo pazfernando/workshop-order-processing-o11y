@@ -41,9 +41,9 @@ El camino estándar de despliegue mantiene la integración simple:
 
 - `deploy.yml` fija `instrumentation_mode` en `code`
 - `deploy.yml` reutiliza una managed suite ya existente a través de la composite action del IDP
-- `deploy.yml` dispara un hook host-side para publicar un dashboard Grafana específico del caller sobre esa suite reutilizada
 - Terraform crea un dashboard CloudWatch específico del workload en la cuenta del caller
 - los parámetros OTLP, ADOT, EMF y de managed suite quedan como detalle interno del flujo, no como inputs normales del usuario
+- si el contrato pide `collector` y la plataforma no resuelve un endpoint explícito ni una managed suite reutilizable, el workflow falla antes del `terraform apply`
 
 ## Metric Catalog
 
@@ -92,7 +92,6 @@ Secretos de GitHub esperados por el deploy:
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
 - opcionalmente `AWS_SESSION_TOKEN`
-- `GH_PAT_O11Y` para disparar el workflow host-side que publica dashboards Grafana por caller
 
 ## CI/CD
 
@@ -109,6 +108,7 @@ Workflows:
 - un `workflow_dispatch` reducido a inputs operativos de la app, no a knobs internos del IDP
 - `instrumentation_mode=code` fijado en el workflow
 - managed suite existente resuelta por la composite action del IDP
+- fallo temprano si `collector` queda sin endpoint efectivo y no hay managed suite reutilizable
 - `bindings.json` generado por la plataforma y persistido en `build/observability/`
 - Terraform para recursos propios de la aplicación y para inyectar los bindings resultantes en las Lambdas
 - una reconciliación previa del state para importar recursos AWS preexistentes del stack antes del `terraform apply`
