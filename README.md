@@ -40,7 +40,7 @@ No se mantiene aquí:
 El camino estándar de despliegue mantiene la integración simple:
 
 - `deploy.yml` fija `instrumentation_mode` en `code`
-- `deploy.yml` pide a la composite action del IDP desplegar automáticamente la managed suite
+- `deploy.yml` reutiliza una managed suite ya existente a través de la composite action del IDP
 - los parámetros OTLP, ADOT, EMF y de managed suite quedan como detalle interno del flujo, no como inputs normales del usuario
 
 ## Metric Catalog
@@ -65,7 +65,7 @@ El flujo esperado es:
 1. este repo versiona su contrato de observabilidad
 2. el pipeline de CD ejecuta la composite action del IDP desde un job normal del caller
 3. la action del IDP valida el contrato, construye el plan y genera `bindings.json`
-4. por defecto, la action del IDP despliega primero la managed suite y reutiliza su OTLP endpoint para resolver collector mode
+4. por defecto, la action del IDP reutiliza la managed suite existente y su OTLP endpoint para resolver collector mode
 5. este repo despliega la app consumiendo esos bindings en Terraform
 
 ## Desarrollo
@@ -99,7 +99,7 @@ Workflows:
 - un job `observability` que ejecuta `pazfernando/workshop-idp-o11y/.github/actions/contract-consumer@main`
 - un `workflow_dispatch` reducido a inputs operativos de la app, no a knobs internos del IDP
 - `instrumentation_mode=code` fijado en el workflow
-- managed suite automática resuelta por la composite action del IDP
+- managed suite existente resuelta por la composite action del IDP
 - `bindings.json` generado por la plataforma y persistido en `build/observability/`
 - Terraform para recursos propios de la aplicación y para inyectar los bindings resultantes en las Lambdas
 - una reconciliación previa del state para importar recursos AWS preexistentes del stack antes del `terraform apply`

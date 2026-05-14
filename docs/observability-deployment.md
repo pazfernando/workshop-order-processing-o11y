@@ -46,7 +46,7 @@ El workflow [deploy.yml](/Users/pazfernando/Documents/projects/windsurf/workshop
 
 - ejecuta la composite action `pazfernando/workshop-idp-o11y/.github/actions/contract-consumer@main`
 - delega en la plataforma la validación del contrato, el plan y la generación de bindings
-- por defecto pide a la plataforma que despliegue primero la managed suite
+- por defecto reutiliza la managed suite ya existente y consume sus outputs
 - fija `instrumentation_mode` en `code`
 - persiste `validation.txt`, `plan.json` y `bindings.json` en `build/observability/`
 - transforma `bindings.json` en un archivo `terraform.tfvars.json`
@@ -70,7 +70,7 @@ Credenciales:
 
 - el job `observability` corre con `environment: aws-dev`
 - la composite action recibe los secrets ya resueltos en el contexto del caller
-- el camino estándar despliega managed suite automáticamente, por lo que deben existir `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y opcionalmente `AWS_SESSION_TOKEN`
+- el camino estándar reutiliza la managed suite existente y necesita `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y opcionalmente `AWS_SESSION_TOKEN` para leer su state y consumir sus outputs
 - opcionalmente `OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD`
 
 ## Outputs consumidos downstream
