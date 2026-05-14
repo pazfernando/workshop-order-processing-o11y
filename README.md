@@ -41,7 +41,7 @@ El camino estándar de despliegue mantiene la integración simple:
 
 - `deploy.yml` fija `instrumentation_mode` en `code`
 - `deploy.yml` reutiliza una managed suite ya existente a través de la composite action del IDP
-- Terraform crea un dashboard CloudWatch específico del workload en la cuenta del caller
+- el dashboard del workload lo materializa el IDP, no Terraform local del caller
 - los parámetros OTLP, ADOT, EMF y de managed suite quedan como detalle interno del flujo, no como inputs normales del usuario
 - si el contrato pide `collector` y la plataforma no resuelve un endpoint explícito ni una managed suite reutilizable, el workflow falla antes del `terraform apply`
 

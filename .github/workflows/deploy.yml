@@ -42,6 +42,9 @@ jobs:
       managed_suite_enabled: ${{ steps.contract-consumer.outputs.managed_suite_enabled }}
       managed_suite_grafana_url: ${{ steps.contract-consumer.outputs.managed_suite_grafana_url }}
       managed_suite_otlp_http_endpoint: ${{ steps.contract-consumer.outputs.managed_suite_otlp_http_endpoint }}
+      workload_dashboard_backend: ${{ steps.contract-consumer.outputs.workload_dashboard_backend }}
+      workload_dashboard_uid: ${{ steps.contract-consumer.outputs.workload_dashboard_uid }}
+      workload_dashboard_url: ${{ steps.contract-consumer.outputs.workload_dashboard_url }}
       effective_collector_endpoint: ${{ steps.contract-consumer.outputs.effective_collector_endpoint }}
       effective_collector_source: ${{ steps.contract-consumer.outputs.effective_collector_source }}
     steps:
@@ -60,14 +63,6 @@ jobs:
           deploy_managed_suite: false
           reuse_managed_suite: true
           aws_region: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'us-east-1' }}
-          managed_suite_subnet_id: ${{ vars.MANAGED_SUITE_SUBNET_ID || '' }}
-          managed_suite_instance_type: ${{ vars.MANAGED_SUITE_INSTANCE_TYPE != '' && vars.MANAGED_SUITE_INSTANCE_TYPE || 't3.small' }}
-          managed_suite_root_volume_size_gb: ${{ fromJSON(vars.MANAGED_SUITE_ROOT_VOLUME_SIZE_GB != '' && vars.MANAGED_SUITE_ROOT_VOLUME_SIZE_GB || '20') }}
-          managed_suite_dashboard_uid: ${{ vars.MANAGED_SUITE_DASHBOARD_UID != '' && vars.MANAGED_SUITE_DASHBOARD_UID || 'platform-observability' }}
-          managed_suite_dashboard_title: ${{ vars.MANAGED_SUITE_DASHBOARD_TITLE != '' && vars.MANAGED_SUITE_DASHBOARD_TITLE || 'Platform Observability' }}
-          managed_suite_grafana_allowed_cidrs: ${{ vars.MANAGED_SUITE_GRAFANA_ALLOWED_CIDRS != '' && vars.MANAGED_SUITE_GRAFANA_ALLOWED_CIDRS || '["0.0.0.0/0"]' }}
-          managed_suite_otlp_allowed_cidrs: ${{ vars.MANAGED_SUITE_OTLP_ALLOWED_CIDRS != '' && vars.MANAGED_SUITE_OTLP_ALLOWED_CIDRS || '["0.0.0.0/0"]' }}
-          managed_suite_ssh_allowed_cidrs: ${{ vars.MANAGED_SUITE_SSH_ALLOWED_CIDRS != '' && vars.MANAGED_SUITE_SSH_ALLOWED_CIDRS || '[]' }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -459,8 +454,6 @@ jobs:
           ORDERS_TABLE_NAME="$(terraform -chdir=infra/terraform output -raw orders_table_name)"
           PAYMENT_SIMULATOR_NAME="$(terraform -chdir=infra/terraform output -raw payment_simulator_name)"
           API_ACCESS_LOG_GROUP_NAME="$(terraform -chdir=infra/terraform output -raw api_access_log_group_name)"
-          CLOUDWATCH_DASHBOARD_NAME="$(terraform -chdir=infra/terraform output -raw cloudwatch_dashboard_name)"
-          CLOUDWATCH_DASHBOARD_URL="$(terraform -chdir=infra/terraform output -raw cloudwatch_dashboard_url)"
           WORKLOAD_SERVICE_INSTANCE_ID="$(terraform -chdir=infra/terraform output -raw workload_service_instance_id)"
           OBSERVABILITY_INSTRUMENTATION_MODE="$(terraform -chdir=infra/terraform output -raw observability_instrumentation_mode || true)"
           EFFECTIVE_OTLP_BASE_ENDPOINT="$(terraform -chdir=infra/terraform output -raw effective_otlp_base_endpoint || true)"
@@ -496,8 +489,6 @@ jobs:
           | Payment Simulator Lambda | \`${PAYMENT_SIMULATOR_NAME}\` |
           | API Access Log Group | \`${API_ACCESS_LOG_GROUP_NAME}\` |
           | OTEL service.instance.id | \`${WORKLOAD_SERVICE_INSTANCE_ID}\` |
-          | CloudWatch Dashboard | \`${CLOUDWATCH_DASHBOARD_NAME}\` |
-          | CloudWatch Dashboard URL | \`${CLOUDWATCH_DASHBOARD_URL}\` |
           | Observability Contract | \`${OBSERVABILITY_CONTRACT_PATH}\` |
 
           ## Observability Workflow Outputs
@@ -507,6 +498,9 @@ jobs:
           | Validation message | \`${{ needs.observability.outputs.validation_message }}\` |
           | Managed suite enabled | \`${{ needs.observability.outputs.managed_suite_enabled }}\` |
           | Managed suite Grafana URL | \`${{ needs.observability.outputs.managed_suite_grafana_url }}\` |
+          | Workload dashboard backend | \`${{ needs.observability.outputs.workload_dashboard_backend }}\` |
+          | Workload dashboard UID | \`${{ needs.observability.outputs.workload_dashboard_uid }}\` |
+          | Workload dashboard URL | \`${{ needs.observability.outputs.workload_dashboard_url }}\` |
           | Managed suite OTLP HTTP endpoint | \`${{ needs.observability.outputs.managed_suite_otlp_http_endpoint }}\` |
           | Effective collector endpoint | \`${{ needs.observability.outputs.effective_collector_endpoint }}\` |
           | Effective collector source | \`${{ needs.observability.outputs.effective_collector_source }}\` |
@@ -539,7 +533,7 @@ jobs:
           - The standard deploy path keeps \`instrumentation_mode=code\` and reuses a pre-existing managed suite when collector mode needs a platform OTLP endpoint.
           - If collector mode is requested and the platform cannot resolve an explicit collector URL or a pre-existing managed suite endpoint, the workflow fails before Terraform apply.
           - The deploy job persists validation, plan, and bindings payloads from the platform workflow before applying Terraform.
-          - Terraform injects the generated AWS Lambda bindings into every application Lambda in this stack and creates a CloudWatch dashboard for the workload.
+          - Terraform injects the generated AWS Lambda bindings into every application Lambda in this stack, while workload dashboards are materialized only by the platform workflow.
           EOF
 
       - name: Upload deployment profile artifact

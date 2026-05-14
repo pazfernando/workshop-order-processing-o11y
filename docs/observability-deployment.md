@@ -49,10 +49,11 @@ El workflow [deploy.yml](/Users/pazfernando/Documents/projects/windsurf/workshop
 - por defecto reutiliza la managed suite ya existente y consume sus outputs
 - fija `instrumentation_mode` en `code`
 - falla antes del `terraform apply` si el contrato requiere `collector` y la plataforma no resuelve ni un endpoint explícito ni una managed suite reutilizable
+- deja en el IDP la publicación del dashboard del workload y consume su URL como output
 - persiste `validation.txt`, `plan.json` y `bindings.json` en `build/observability/`
 - transforma `bindings.json` en un archivo `terraform.tfvars.json`
 - reconcilia el state de Terraform importando recursos AWS del stack si ya existen
-- despliega la app con Terraform, incluyendo un dashboard CloudWatch por workload
+- despliega la app con Terraform sin materializar dashboards de observabilidad en el repo consumidor
 - no crea plataforma de observabilidad compartida
 
 ## Inputs visibles del deploy
