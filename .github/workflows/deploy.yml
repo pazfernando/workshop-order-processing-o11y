@@ -60,7 +60,6 @@ jobs:
           deploy_managed_suite: false
           reuse_managed_suite: true
           aws_region: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'us-east-1' }}
-          managed_suite_name: ${{ vars.MANAGED_SUITE_NAME != '' && vars.MANAGED_SUITE_NAME || 'order-processing-o11y' }}
           managed_suite_subnet_id: ${{ vars.MANAGED_SUITE_SUBNET_ID || '' }}
           managed_suite_instance_type: ${{ vars.MANAGED_SUITE_INSTANCE_TYPE != '' && vars.MANAGED_SUITE_INSTANCE_TYPE || 't3.small' }}
           managed_suite_root_volume_size_gb: ${{ fromJSON(vars.MANAGED_SUITE_ROOT_VOLUME_SIZE_GB != '' && vars.MANAGED_SUITE_ROOT_VOLUME_SIZE_GB || '20') }}
