@@ -47,7 +47,7 @@ El workflow [deploy.yml](/Users/pazfernando/Documents/projects/windsurf/workshop
 - ejecuta la composite action `pazfernando/workshop-idp-o11y/.github/actions/contract-consumer@main`
 - delega en la plataforma la validación del contrato, el plan y la generación de bindings
 - por defecto reutiliza la managed suite ya existente y consume sus outputs
-- publica o actualiza un dashboard Grafana por caller sobre la suite reutilizada
+- antes de la validación dispara un workflow host-side que publica o actualiza un dashboard Grafana por caller sobre la suite reutilizada
 - fija `instrumentation_mode` en `code`
 - persiste `validation.txt`, `plan.json` y `bindings.json` en `build/observability/`
 - transforma `bindings.json` en un archivo `terraform.tfvars.json`
@@ -72,7 +72,9 @@ Credenciales:
 - el job `observability` corre con `environment: aws-dev`
 - la composite action recibe los secrets ya resueltos en el contexto del caller
 - el camino estándar reutiliza la managed suite existente y necesita `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y opcionalmente `AWS_SESSION_TOKEN` para leer su state y consumir sus outputs
-- opcionalmente `OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD`
+- `IDP_REPO_DISPATCH_TOKEN` para disparar el workflow host-side en `workshop-idp-o11y`
+
+El password de Grafana ya no viaja desde el caller. El workflow host-side `publish-caller-dashboard.yml` corre en `workshop-idp-o11y` y toma `OBSERVABILITY_SUITE_GRAFANA_ADMIN_PASSWORD` directamente de los secrets del host.
 
 ## Outputs consumidos downstream
 

@@ -41,7 +41,7 @@ El camino estándar de despliegue mantiene la integración simple:
 
 - `deploy.yml` fija `instrumentation_mode` en `code`
 - `deploy.yml` reutiliza una managed suite ya existente a través de la composite action del IDP
-- `deploy.yml` publica un dashboard Grafana específico del caller sobre esa suite reutilizada
+- `deploy.yml` dispara un hook host-side para publicar un dashboard Grafana específico del caller sobre esa suite reutilizada
 - Terraform crea un dashboard CloudWatch específico del workload en la cuenta del caller
 - los parámetros OTLP, ADOT, EMF y de managed suite quedan como detalle interno del flujo, no como inputs normales del usuario
 
@@ -86,6 +86,13 @@ Comandos principales:
 - `terraform -chdir=infra/terraform fmt -check -recursive`
 - `terraform -chdir=infra/terraform init -backend=false`
 - `terraform -chdir=infra/terraform validate`
+
+Secretos de GitHub esperados por el deploy:
+
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- opcionalmente `AWS_SESSION_TOKEN`
+- `IDP_REPO_DISPATCH_TOKEN` para disparar el workflow host-side que publica dashboards Grafana por caller
 
 ## CI/CD
 

@@ -30,21 +30,15 @@ on:
         type: string
 
 jobs:
-  observability:
+  platform-assets:
     runs-on: ubuntu-latest
     environment: aws-dev
     permissions:
       contents: read
     outputs:
-      validation_message: ${{ steps.contract-consumer.outputs.validation_message }}
-      plan_json: ${{ steps.contract-consumer.outputs.plan_json }}
-      bindings_json: ${{ steps.contract-consumer.outputs.bindings_json }}
-      managed_suite_enabled: ${{ steps.contract-consumer.outputs.managed_suite_enabled }}
-      managed_suite_grafana_url: ${{ steps.contract-consumer.outputs.managed_suite_grafana_url }}
-      caller_grafana_dashboard_url: ${{ steps.contract-consumer.outputs.caller_grafana_dashboard_url }}
-      managed_suite_otlp_http_endpoint: ${{ steps.contract-consumer.outputs.managed_suite_otlp_http_endpoint }}
-      effective_collector_endpoint: ${{ steps.contract-consumer.outputs.effective_collector_endpoint }}
-      effective_collector_source: ${{ steps.contract-consumer.outputs.effective_collector_source }}
+      caller_identifier: ${{ steps.observability-names.outputs.caller_identifier }}
+      caller_dashboard_uid: ${{ steps.observability-names.outputs.caller_dashboard_uid }}
+      caller_dashboard_title: ${{ steps.observability-names.outputs.caller_dashboard_title }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -77,6 +71,102 @@ jobs:
             echo "caller_dashboard_title=${EFFECTIVE_STACK_NAME} Observability"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Check whether platform dashboard hook is needed
+        id: hook-check
+        run: |
+          set -euo pipefail
+          ruby <<'RUBY' >> "$GITHUB_OUTPUT"
+          require "yaml"
+          contract = YAML.load_file("contracts/observability/order-processing.observability.yaml")
+          traces = contract.dig("spec", "telemetry", "signals", "traces", "ingestion")
+          metrics = contract.dig("spec", "telemetry", "signals", "metrics", "ingestion")
+          logs = contract.dig("spec", "telemetry", "signals", "logs", "ingestion")
+          dashboards_enabled = contract.dig("spec", "capabilities", "dashboards", "enabled") == true
+          requires = dashboards_enabled && [traces, metrics, logs].include?("collector")
+          puts "requires_platform_dashboard=#{requires}"
+          RUBY
+
+      - name: Dispatch caller dashboard publication
+        if: ${{ steps.hook-check.outputs.requires_platform_dashboard == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.IDP_REPO_DISPATCH_TOKEN }}
+          AWS_REGION: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'us-east-1' }}
+          MANAGED_SUITE_NAME: ${{ vars.MANAGED_SUITE_NAME != '' && vars.MANAGED_SUITE_NAME || 'order-processing-o11y' }}
+          CALLER_IDENTIFIER: ${{ steps.observability-names.outputs.caller_identifier }}
+          CALLER_DASHBOARD_UID: ${{ steps.observability-names.outputs.caller_dashboard_uid }}
+          CALLER_DASHBOARD_TITLE: ${{ steps.observability-names.outputs.caller_dashboard_title }}
+        run: |
+          set -euo pipefail
+          if [ -z "$GH_TOKEN" ]; then
+            echo "IDP_REPO_DISPATCH_TOKEN must be configured to dispatch the host workflow." >&2
+            exit 1
+          fi
+
+          DISPATCH_ID="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${CALLER_DASHBOARD_UID}"
+          gh api \
+            repos/pazfernando/workshop-idp-o11y/actions/workflows/publish-caller-dashboard.yml/dispatches \
+            -X POST \
+            -f ref=main \
+            -f inputs[dispatch_id]="$DISPATCH_ID" \
+            -f inputs[managed_suite_name]="$MANAGED_SUITE_NAME" \
+            -f inputs[aws_region]="$AWS_REGION" \
+            -f inputs[caller_identifier]="$CALLER_IDENTIFIER" \
+            -f inputs[caller_dashboard_uid]="$CALLER_DASHBOARD_UID" \
+            -f inputs[caller_dashboard_title]="$CALLER_DASHBOARD_TITLE"
+
+          RUN_ID=""
+          for _ in $(seq 1 30); do
+            RUN_ID="$(gh api repos/pazfernando/workshop-idp-o11y/actions/workflows/publish-caller-dashboard.yml/runs \
+              -f event=workflow_dispatch \
+              -f per_page=20 \
+              --jq '.workflow_runs[] | select(.display_title | contains("'"$DISPATCH_ID"'")) | .id' | head -n1)"
+            if [ -n "$RUN_ID" ]; then
+              break
+            fi
+            sleep 10
+          done
+
+          if [ -z "$RUN_ID" ]; then
+            echo "Unable to find the dispatched publish-caller-dashboard workflow run." >&2
+            exit 1
+          fi
+
+          for _ in $(seq 1 60); do
+            STATUS="$(gh api repos/pazfernando/workshop-idp-o11y/actions/runs/"$RUN_ID" --jq '.status')"
+            CONCLUSION="$(gh api repos/pazfernando/workshop-idp-o11y/actions/runs/"$RUN_ID" --jq '.conclusion // ""')"
+            if [ "$STATUS" = "completed" ]; then
+              if [ "$CONCLUSION" = "success" ]; then
+                exit 0
+              fi
+              echo "publish-caller-dashboard workflow failed with conclusion: $CONCLUSION" >&2
+              gh api repos/pazfernando/workshop-idp-o11y/actions/runs/"$RUN_ID" --jq '.html_url' >&2
+              exit 1
+            fi
+            sleep 10
+          done
+
+          echo "Timed out waiting for publish-caller-dashboard workflow run $RUN_ID." >&2
+          exit 1
+
+  observability:
+    needs: platform-assets
+    runs-on: ubuntu-latest
+    environment: aws-dev
+    permissions:
+      contents: read
+    outputs:
+      validation_message: ${{ steps.contract-consumer.outputs.validation_message }}
+      plan_json: ${{ steps.contract-consumer.outputs.plan_json }}
+      bindings_json: ${{ steps.contract-consumer.outputs.bindings_json }}
+      managed_suite_enabled: ${{ steps.contract-consumer.outputs.managed_suite_enabled }}
+      managed_suite_grafana_url: ${{ steps.contract-consumer.outputs.managed_suite_grafana_url }}
+      managed_suite_otlp_http_endpoint: ${{ steps.contract-consumer.outputs.managed_suite_otlp_http_endpoint }}
+      effective_collector_endpoint: ${{ steps.contract-consumer.outputs.effective_collector_endpoint }}
+      effective_collector_source: ${{ steps.contract-consumer.outputs.effective_collector_source }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Run contract consumer
         id: contract-consumer
         uses: pazfernando/workshop-idp-o11y/.github/actions/contract-consumer@main
@@ -98,10 +188,6 @@ jobs:
           managed_suite_grafana_allowed_cidrs: ${{ vars.MANAGED_SUITE_GRAFANA_ALLOWED_CIDRS != '' && vars.MANAGED_SUITE_GRAFANA_ALLOWED_CIDRS || '["0.0.0.0/0"]' }}
           managed_suite_otlp_allowed_cidrs: ${{ vars.MANAGED_SUITE_OTLP_ALLOWED_CIDRS != '' && vars.MANAGED_SUITE_OTLP_ALLOWED_CIDRS || '["0.0.0.0/0"]' }}
           managed_suite_ssh_allowed_cidrs: ${{ vars.MANAGED_SUITE_SSH_ALLOWED_CIDRS != '' && vars.MANAGED_SUITE_SSH_ALLOWED_CIDRS || '[]' }}
-          caller_identifier: ${{ steps.observability-names.outputs.caller_identifier }}
-          caller_dashboard_uid: ${{ steps.observability-names.outputs.caller_dashboard_uid }}
-          caller_dashboard_title: ${{ steps.observability-names.outputs.caller_dashboard_title }}
-          publish_caller_grafana_dashboard: true
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -110,7 +196,9 @@ jobs:
           TF_STATE_KEY: ${{ vars.TF_STATE_KEY }}
 
   deploy:
-    needs: observability
+    needs:
+      - platform-assets
+      - observability
     runs-on: ubuntu-latest
     environment: aws-dev
     permissions:
@@ -511,7 +599,7 @@ jobs:
           | Validation message | \`${{ needs.observability.outputs.validation_message }}\` |
           | Managed suite enabled | \`${{ needs.observability.outputs.managed_suite_enabled }}\` |
           | Managed suite Grafana URL | \`${{ needs.observability.outputs.managed_suite_grafana_url }}\` |
-          | Caller Grafana Dashboard URL | \`${{ needs.observability.outputs.caller_grafana_dashboard_url }}\` |
+          | Caller Grafana Dashboard URL | \`${{ needs.observability.outputs.managed_suite_grafana_url }}/d/${{ needs.platform-assets.outputs.caller_dashboard_uid }}\` |
           | Managed suite OTLP HTTP endpoint | \`${{ needs.observability.outputs.managed_suite_otlp_http_endpoint }}\` |
           | Effective collector endpoint | \`${{ needs.observability.outputs.effective_collector_endpoint }}\` |
           | Effective collector source | \`${{ needs.observability.outputs.effective_collector_source }}\` |
@@ -541,7 +629,7 @@ jobs:
           ## Notes
 
           - This repository consumes the observability platform through the composite action interface.
-          - The standard deploy path keeps \`instrumentation_mode=code\`, reuses the managed suite, and publishes a caller-specific Grafana dashboard.
+          - The standard deploy path keeps \`instrumentation_mode=code\`, reuses the managed suite, and requests a caller-specific Grafana dashboard through a host-side workflow hook.
           - The deploy job persists validation, plan, and bindings payloads from the platform workflow before applying Terraform.
           - Terraform injects the generated AWS Lambda bindings into every application Lambda in this stack and creates a CloudWatch dashboard for the workload.
           EOF
