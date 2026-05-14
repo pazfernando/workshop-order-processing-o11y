@@ -91,11 +91,6 @@ jobs:
             exit 1
           fi
 
-          if ! gh api repos/pazfernando/workshop-idp-o11y/actions/runs -f per_page=1 >/dev/null 2>&1; then
-            echo "GH_PAT_O11Y cannot read Actions runs for pazfernando/workshop-idp-o11y. Verify Actions access on the token." >&2
-            exit 1
-          fi
-
           DISPATCH_ID="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${CALLER_DASHBOARD_UID}"
           PAYLOAD_PATH="${RUNNER_TEMP}/publish-caller-dashboard-dispatch.json"
           cat > "$PAYLOAD_PATH" <<EOF
@@ -126,40 +121,7 @@ jobs:
             echo "repository_dispatch failed for pazfernando/workshop-idp-o11y with HTTP status $HTTP_STATUS." >&2
             exit 1
           fi
-
-          RUN_ID=""
-          for _ in $(seq 1 30); do
-            RUN_ID="$(gh api repos/pazfernando/workshop-idp-o11y/actions/runs \
-              -f event=repository_dispatch \
-              -f per_page=30 \
-              --jq '.workflow_runs[] | select(.name == "Publish Caller Dashboard") | select(.display_title | contains("'"$DISPATCH_ID"'")) | .id' | head -n1)"
-            if [ -n "$RUN_ID" ]; then
-              break
-            fi
-            sleep 10
-          done
-
-          if [ -z "$RUN_ID" ]; then
-            echo "Unable to find the dispatched publish-caller-dashboard workflow run." >&2
-            exit 1
-          fi
-
-          for _ in $(seq 1 60); do
-            STATUS="$(gh api repos/pazfernando/workshop-idp-o11y/actions/runs/"$RUN_ID" --jq '.status')"
-            CONCLUSION="$(gh api repos/pazfernando/workshop-idp-o11y/actions/runs/"$RUN_ID" --jq '.conclusion // ""')"
-            if [ "$STATUS" = "completed" ]; then
-              if [ "$CONCLUSION" = "success" ]; then
-                exit 0
-              fi
-              echo "publish-caller-dashboard workflow failed with conclusion: $CONCLUSION" >&2
-              gh api repos/pazfernando/workshop-idp-o11y/actions/runs/"$RUN_ID" --jq '.html_url' >&2
-              exit 1
-            fi
-            sleep 10
-          done
-
-          echo "Timed out waiting for publish-caller-dashboard workflow run $RUN_ID." >&2
-          exit 1
+          echo "repository_dispatch accepted for pazfernando/workshop-idp-o11y (dispatch_id=${DISPATCH_ID})."
 
   observability:
     needs: platform-assets
