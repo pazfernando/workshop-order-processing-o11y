@@ -28,6 +28,37 @@ on:
         required: false
         default: "1"
         type: string
+      instrumentation_mode:
+        description: AWS Lambda instrumentation mode
+        required: false
+        default: code
+        type: choice
+        options:
+          - code
+          - adot_layer
+      export_strategy:
+        description: Telemetry export path applied to traces, metrics, and logs in the effective contract
+        required: false
+        default: collector
+        type: choice
+        options:
+          - collector
+          - direct
+      collector_endpoint:
+        description: Optional collector OTLP base endpoint
+        required: false
+        default: ""
+        type: string
+      collector_traces_endpoint:
+        description: Optional collector traces endpoint override
+        required: false
+        default: ""
+        type: string
+      collector_metrics_endpoint:
+        description: Optional collector metrics endpoint override
+        required: false
+        default: ""
+        type: string
 
 jobs:
   observability:
@@ -51,15 +82,57 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Prepare effective observability contract
+        env:
+          SOURCE_CONTRACT_PATH: contracts/observability/order-processing.observability.yaml
+          EFFECTIVE_CONTRACT_PATH: build/observability/order-processing.effective.observability.yaml
+          EXPORT_STRATEGY_INPUT: ${{ github.event_name == 'workflow_dispatch' && inputs.export_strategy || 'collector' }}
+        run: |
+          set -euo pipefail
+          mkdir -p build/observability
+          cp "$SOURCE_CONTRACT_PATH" "$EFFECTIVE_CONTRACT_PATH"
+
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          source = Path(os.environ["EFFECTIVE_CONTRACT_PATH"])
+          export_strategy = os.environ["EXPORT_STRATEGY_INPUT"].strip()
+          if export_strategy not in {"collector", "direct"}:
+            raise SystemExit(f"Unsupported export strategy: {export_strategy}")
+
+          text = source.read_text()
+          text = text.replace("        ingestion: collector", f"        ingestion: {export_strategy}")
+          text = text.replace("        ingestion: direct", f"        ingestion: {export_strategy}")
+          source.write_text(text)
+          PY
+
+      - name: Validate workflow input combination
+        env:
+          EXPORT_STRATEGY_INPUT: ${{ github.event_name == 'workflow_dispatch' && inputs.export_strategy || 'collector' }}
+          COLLECTOR_ENDPOINT_INPUT: ${{ github.event_name == 'workflow_dispatch' && inputs.collector_endpoint || '' }}
+          COLLECTOR_TRACES_ENDPOINT_INPUT: ${{ github.event_name == 'workflow_dispatch' && inputs.collector_traces_endpoint || '' }}
+          COLLECTOR_METRICS_ENDPOINT_INPUT: ${{ github.event_name == 'workflow_dispatch' && inputs.collector_metrics_endpoint || '' }}
+        run: |
+          set -euo pipefail
+
+          if [ "$EXPORT_STRATEGY_INPUT" = "direct" ] && { [ -n "$COLLECTOR_ENDPOINT_INPUT" ] || [ -n "$COLLECTOR_TRACES_ENDPOINT_INPUT" ] || [ -n "$COLLECTOR_METRICS_ENDPOINT_INPUT" ]; }; then
+            echo "collector_* inputs cannot be combined with export_strategy=direct." >&2
+            exit 1
+          fi
+
       - name: Run contract consumer
         id: contract-consumer
         uses: pazfernando/workshop-idp-o11y/.github/actions/contract-consumer@main
         with:
-          contract_path: contracts/observability/order-processing.observability.yaml
+          contract_path: build/observability/order-processing.effective.observability.yaml
           upload_artifacts: true
           generate_bindings: true
           bindings_target: aws-lambda
-          instrumentation_mode: code
+          instrumentation_mode: ${{ github.event_name == 'workflow_dispatch' && inputs.instrumentation_mode || 'code' }}
+          collector_endpoint: ${{ github.event_name == 'workflow_dispatch' && inputs.collector_endpoint || '' }}
+          collector_traces_endpoint: ${{ github.event_name == 'workflow_dispatch' && inputs.collector_traces_endpoint || '' }}
+          collector_metrics_endpoint: ${{ github.event_name == 'workflow_dispatch' && inputs.collector_metrics_endpoint || '' }}
           deploy_managed_suite: false
           reuse_managed_suite: true
           aws_region: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'us-east-1' }}
@@ -530,7 +603,8 @@ jobs:
           ## Notes
 
           - This repository consumes the observability platform through the composite action interface.
-          - The standard deploy path keeps \`instrumentation_mode=code\` and reuses a pre-existing managed suite when collector mode needs a platform OTLP endpoint.
+          - The workflow can select \`code\` or \`adot_layer\`, and can generate an effective \`collector\` or \`direct\` contract for the current run.
+          - When collector mode does not receive an explicit endpoint, the standard path reuses a pre-existing managed suite OTLP endpoint.
           - If collector mode is requested and the platform cannot resolve an explicit collector URL or a pre-existing managed suite endpoint, the workflow fails before Terraform apply.
           - The deploy job persists validation, plan, and bindings payloads from the platform workflow before applying Terraform.
           - Terraform injects the generated AWS Lambda bindings into every application Lambda in this stack, while workload dashboards are materialized only by the platform workflow.

@@ -39,10 +39,12 @@ No se mantiene aquí:
 
 El camino estándar de despliegue mantiene la integración simple:
 
-- `deploy.yml` fija `instrumentation_mode` en `code`
-- `deploy.yml` reutiliza una managed suite ya existente a través de la composite action del IDP
+- `deploy.yml` deja elegir `instrumentation_mode` entre `code` y `adot_layer`
+- `deploy.yml` deja elegir `export_strategy` entre `collector` y `direct`, generando un contrato efectivo temporal para ese run
+- `deploy.yml` acepta `collector_endpoint`, `collector_traces_endpoint` y `collector_metrics_endpoint` cuando quieres sobreescribir el collector
+- por defecto, `deploy.yml` reutiliza una managed suite ya existente a través de la composite action del IDP cuando `collector` no trae endpoint explícito
+- en `direct`, el IDP infiere los endpoints AWS/CloudWatch relacionados sin exponer knobs extra en este repo
 - el dashboard del workload lo materializa el IDP, no Terraform local del caller
-- los parámetros OTLP, ADOT, EMF y de managed suite quedan como detalle interno del flujo, no como inputs normales del usuario
 - si el contrato pide `collector` y la plataforma no resuelve un endpoint explícito ni una managed suite reutilizable, el workflow falla antes del `terraform apply`
 
 ## Metric Catalog
@@ -105,9 +107,9 @@ Workflows:
 
 - el contrato versionado en este repo
 - un job `observability` que ejecuta `pazfernando/workshop-idp-o11y/.github/actions/contract-consumer@main`
-- un `workflow_dispatch` reducido a inputs operativos de la app, no a knobs internos del IDP
-- `instrumentation_mode=code` fijado en el workflow
-- managed suite existente resuelta por la composite action del IDP
+- un `workflow_dispatch` que deja elegir `code/adot_layer`, `collector/direct` y overrides opcionales para `collector`
+- un contrato efectivo temporal en `build/observability/order-processing.effective.observability.yaml` para reflejar el `export_strategy` del run
+- managed suite existente resuelta por la composite action del IDP cuando `collector` no usa endpoint explícito
 - fallo temprano si `collector` queda sin endpoint efectivo y no hay managed suite reutilizable
 - `bindings.json` generado por la plataforma y persistido en `build/observability/`
 - Terraform para recursos propios de la aplicación y para inyectar los bindings resultantes en las Lambdas

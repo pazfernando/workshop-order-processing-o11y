@@ -46,8 +46,11 @@ El workflow [deploy.yml](/Users/pazfernando/Documents/projects/windsurf/workshop
 
 - ejecuta la composite action `pazfernando/workshop-idp-o11y/.github/actions/contract-consumer@main`
 - delega en la plataforma la validación del contrato, el plan y la generación de bindings
-- por defecto reutiliza la managed suite ya existente y consume sus outputs
-- fija `instrumentation_mode` en `code`
+- por defecto reutiliza la managed suite ya existente y consume sus outputs cuando `collector` no trae endpoint explícito
+- deja elegir `instrumentation_mode` entre `code` y `adot_layer`
+- deja elegir `export_strategy` entre `collector` y `direct` generando un contrato efectivo temporal antes de llamar al IDP
+- acepta `collector_endpoint`, `collector_traces_endpoint` y `collector_metrics_endpoint` cuando quieres sobreescribir el collector
+- en `direct`, el IDP infiere los endpoints AWS/CloudWatch relacionados
 - falla antes del `terraform apply` si el contrato requiere `collector` y la plataforma no resuelve ni un endpoint explícito ni una managed suite reutilizable
 - deja en el IDP la publicación del dashboard del workload y consume su URL como output
 - persiste `validation.txt`, `plan.json` y `bindings.json` en `build/observability/`
@@ -58,15 +61,24 @@ El workflow [deploy.yml](/Users/pazfernando/Documents/projects/windsurf/workshop
 
 ## Inputs visibles del deploy
 
-El `workflow_dispatch` expone solo inputs operativos de la app:
+El `workflow_dispatch` ahora expone tanto inputs operativos de la app como selectores controlados de observabilidad:
 
 | Input | Uso |
 | :--- | :--- |
 | `resource_prefix` | Prefijo de recursos y nombres del stack. |
 | `payment_failure_mode` | Modo de falla del simulador de pagos. |
 | `log_retention_in_days` | Retención de logs de CloudWatch. |
+| `instrumentation_mode` | Selecciona `code` o `adot_layer`. |
+| `export_strategy` | Selecciona `collector` o `direct` para el contrato efectivo del run. |
+| `collector_endpoint` | Endpoint OTLP base custom para runs `collector`. |
+| `collector_traces_endpoint` | Override opcional del endpoint de trazas para runs `collector`. |
+| `collector_metrics_endpoint` | Override opcional del endpoint de métricas para runs `collector`. |
 
-Los parámetros OTLP, ADOT, EMF y de managed suite ya no forman parte de la interfaz normal del consumidor en este repo. Quedan resueltos por defaults del IDP o por variables internas del entorno GitHub.
+Reglas:
+
+- `collector_*` no aplica con `export_strategy=direct`
+- si `collector` no recibe endpoint explícito, el workflow intenta reutilizar la managed suite existente
+- el workflow genera `build/observability/order-processing.effective.observability.yaml` para reflejar el `export_strategy` efectivo del run
 
 Credenciales:
 
