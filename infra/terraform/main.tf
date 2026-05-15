@@ -54,6 +54,18 @@ locals {
   effective_otel_environment = merge(local.otel_environment, {
     OTEL_RESOURCE_ATTRIBUTES = local.effective_otel_resource_attributes
   })
+  lambda_otel_resource_attributes = {
+    create_order      = "${local.effective_otel_resource_attributes},faas.instance=${local.create_order_function_name},aws.lambda.function_name=${local.create_order_function_name}"
+    get_order         = "${local.effective_otel_resource_attributes},faas.instance=${local.get_order_function_name},aws.lambda.function_name=${local.get_order_function_name}"
+    payment_simulator = "${local.effective_otel_resource_attributes},faas.instance=${local.payment_simulator_function_name},aws.lambda.function_name=${local.payment_simulator_function_name}"
+    order_processor   = "${local.effective_otel_resource_attributes},faas.instance=${local.order_processor_function_name},aws.lambda.function_name=${local.order_processor_function_name}"
+  }
+  lambda_otel_environments = {
+    create_order      = merge(local.effective_otel_environment, { OTEL_RESOURCE_ATTRIBUTES = local.lambda_otel_resource_attributes.create_order })
+    get_order         = merge(local.effective_otel_environment, { OTEL_RESOURCE_ATTRIBUTES = local.lambda_otel_resource_attributes.get_order })
+    payment_simulator = merge(local.effective_otel_environment, { OTEL_RESOURCE_ATTRIBUTES = local.lambda_otel_resource_attributes.payment_simulator })
+    order_processor   = merge(local.effective_otel_environment, { OTEL_RESOURCE_ATTRIBUTES = local.lambda_otel_resource_attributes.order_processor })
+  }
   otel_layers           = try(local.otel_bindings.layers, [])
   otel_managed_policies = try(local.otel_bindings.managedPolicies, [])
   otel_instrumentation  = try(local.otel_bindings.instrumentation, {})
@@ -272,7 +284,7 @@ resource "aws_lambda_function" "create_order" {
         LOG_LEVEL         = "INFO"
         SERVICE_NAME      = "order-api"
       },
-      local.effective_otel_environment
+      local.lambda_otel_environments.create_order
     )
   }
 
@@ -302,7 +314,7 @@ resource "aws_lambda_function" "get_order" {
         LOG_LEVEL         = "INFO"
         SERVICE_NAME      = "order-api"
       },
-      local.effective_otel_environment
+      local.lambda_otel_environments.get_order
     )
   }
 
@@ -333,7 +345,7 @@ resource "aws_lambda_function" "payment_simulator" {
         PAYMENT_FAILURE_MODE = var.payment_failure_mode
         SERVICE_NAME         = "payment-simulator"
       },
-      local.effective_otel_environment
+      local.lambda_otel_environments.payment_simulator
     )
   }
 
@@ -364,7 +376,7 @@ resource "aws_lambda_function" "order_processor" {
         PAYMENT_SIMULATOR_FUNCTION_NAME = aws_lambda_function.payment_simulator.function_name
         SERVICE_NAME                    = "order-processor"
       },
-      local.effective_otel_environment
+      local.lambda_otel_environments.order_processor
     )
   }
 
