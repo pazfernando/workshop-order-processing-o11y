@@ -11,10 +11,10 @@ const {
   durationMs,
   addSpanEvent,
   extractTraceContext,
-  flushOpenTelemetryWithDiagnostics,
   injectTraceContext,
   recordException,
   runWithActiveSpan,
+  triggerOpenTelemetryFlush,
 } = require("../shared/observability");
 
 const lambdaClient = new LambdaClient({});
@@ -99,7 +99,7 @@ exports.handler = async (event, context) => {
         await failOrder(orderId, error.message);
         throw error;
       } finally {
-        await flushOpenTelemetryWithDiagnostics({
+        triggerOpenTelemetryFlush({
           operation: requestObservabilityContext.operation,
           requestId: requestObservabilityContext.requestId,
           correlationId: requestObservabilityContext.correlationId,

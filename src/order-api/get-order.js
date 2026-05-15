@@ -7,10 +7,10 @@ const {
   durationMs,
   buildResponseHeaders,
   extractTraceContext,
-  flushOpenTelemetryWithDiagnostics,
   recordException,
   recordHttpServerMetrics,
   runWithActiveSpan,
+  triggerOpenTelemetryFlush,
 } = require("../shared/observability");
 
 const dynamoClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -110,7 +110,7 @@ exports.handler = async (event, context) => {
 
         return errorResponse;
       } finally {
-        await flushOpenTelemetryWithDiagnostics({
+        triggerOpenTelemetryFlush({
           route: requestObservabilityContext.routeKey || requestObservabilityContext.path,
           httpMethod: requestObservabilityContext.httpMethod,
           requestId: requestObservabilityContext.requestId,

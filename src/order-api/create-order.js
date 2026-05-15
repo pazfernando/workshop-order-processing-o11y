@@ -12,11 +12,11 @@ const {
   buildResponseHeaders,
   addSpanEvent,
   extractTraceContext,
-  flushOpenTelemetryWithDiagnostics,
   injectTraceContext,
   recordException,
   recordHttpServerMetrics,
   runWithActiveSpan,
+  triggerOpenTelemetryFlush,
 } = require("../shared/observability");
 
 const eventBridgeClient = new EventBridgeClient({});
@@ -140,7 +140,7 @@ exports.handler = async (event, context) => {
 
         return errorResponse;
       } finally {
-        await flushOpenTelemetryWithDiagnostics({
+        triggerOpenTelemetryFlush({
           route: requestObservabilityContext.routeKey || requestObservabilityContext.path,
           httpMethod: requestObservabilityContext.httpMethod,
           requestId: requestObservabilityContext.requestId,

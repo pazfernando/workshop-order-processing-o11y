@@ -3,9 +3,9 @@ const {
   createInvocationContext,
   durationMs,
   extractTraceContext,
-  flushOpenTelemetryWithDiagnostics,
   recordException,
   runWithActiveSpan,
+  triggerOpenTelemetryFlush,
 } = require("../shared/observability");
 
 const FAILURE_MODE = process.env.PAYMENT_FAILURE_MODE || "none";
@@ -71,7 +71,7 @@ exports.handler = async (event, context) => {
 
         throw error;
       } finally {
-        await flushOpenTelemetryWithDiagnostics({
+        triggerOpenTelemetryFlush({
           operation: requestObservabilityContext.operation,
           requestId: requestObservabilityContext.requestId,
           correlationId: requestObservabilityContext.correlationId,

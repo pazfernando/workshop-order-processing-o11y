@@ -175,10 +175,22 @@ function emitStructuredLog(level, message, context) {
   emitLogRecord(level, message, context);
 }
 
-function flushOpenTelemetryWithDiagnostics(context = {}) {
+function flushOpenTelemetryWithDiagnostics(context = {}, options = {}) {
+  const timeoutMs = Number(options.timeoutMs || process.env.OTEL_FLUSH_TIMEOUT_MS || 250);
   logOtelFlush("OpenTelemetry export attempt starting", context);
 
-  return forceFlushOpenTelemetry().then((result) => {
+  return Promise.race([
+    forceFlushOpenTelemetry(),
+    new Promise((resolve) => {
+      setTimeout(() => {
+        resolve({
+          flushed: false,
+          skipped: false,
+          reason: "flush-timeout",
+        });
+      }, timeoutMs);
+    }),
+  ]).then((result) => {
     logOtelFlush("OpenTelemetry export attempt completed", {
       ...context,
       otelFlushCompleted: Boolean(result?.flushed),
@@ -186,10 +198,25 @@ function flushOpenTelemetryWithDiagnostics(context = {}) {
       otelFlushReason: result?.reason,
       otelFlushErrorName: result?.errorName,
       otelFlushErrorMessage: result?.errorMessage,
+      otelFlushTimeoutMs: timeoutMs,
     });
 
     return result;
+  }).catch((error) => {
+    logOtelFlush("OpenTelemetry export attempt completed", {
+      ...context,
+      otelFlushCompleted: false,
+      otelFlushSkipped: false,
+      otelFlushReason: "flush-promise-failed",
+      otelFlushErrorName: error?.name,
+      otelFlushErrorMessage: error?.message,
+      otelFlushTimeoutMs: timeoutMs,
+    });
   });
+}
+
+function triggerOpenTelemetryFlush(context = {}, options = {}) {
+  void flushOpenTelemetryWithDiagnostics(context, options);
 }
 
 function recordMetric(name, value, options = {}) {
@@ -415,5 +442,6 @@ module.exports = {
   recordHttpServerMetrics,
   runWithActiveSpan,
   setSpanAttributes,
+  triggerOpenTelemetryFlush,
   waitForOpenTelemetry,
 };
