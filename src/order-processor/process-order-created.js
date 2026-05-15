@@ -9,7 +9,13 @@ const logger = require("../shared/logger");
 const {
   createEventContext,
   durationMs,
-} = require("../shared/request-context");
+  addSpanEvent,
+  extractTraceContext,
+  forceFlushOpenTelemetry,
+  injectTraceContext,
+  recordException,
+  runWithActiveSpan,
+} = require("../shared/observability");
 
 const lambdaClient = new LambdaClient({});
 const dynamoClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -19,54 +25,84 @@ const PAYMENT_SIMULATOR_FUNCTION_NAME = process.env.PAYMENT_SIMULATOR_FUNCTION_N
 
 exports.handler = async (event, context) => {
   const detail = event.detail || {};
-  const startTime = Date.now();
-  const requestContext = createEventContext(event, context, {
-    service: "order-processor",
-    operation: "process-order-created",
-  });
-  const log = logger.createLogger(requestContext);
-  const orderId = detail.orderId;
+  const parentContext = extractTraceContext(detail.traceContext || {});
 
-  log.info("Order processor received event", { records: event.detail ? 1 : 0 });
-
-  if (!orderId) {
-    log.warn("Event without orderId was ignored", { detail });
-    return;
-  }
-
-  try {
-    const order = await moveOrderToProcessing(orderId);
-    const paymentStartTime = Date.now();
-    const paymentResult = await invokePaymentSimulator(order, requestContext);
-    const paymentLatencyMs = durationMs(paymentStartTime);
-    await finalizeOrder(orderId, paymentResult);
-
-    log.info("Order processed successfully", {
-      orderId,
-      finalStatus: paymentResult.paymentStatus,
-      paymentLatencyMs,
-      processingLatencyMs: durationMs(startTime),
-    });
-  } catch (error) {
-    if (error instanceof ConditionalCheckFailedException) {
-      const currentOrder = await getOrder(orderId);
-      log.info("Duplicate or already processed event skipped", {
-        orderId,
-        currentStatus: currentOrder?.status,
+  return runWithActiveSpan(
+    "OrderCreated",
+    {
+      kind: "CONSUMER",
+      parentContext,
+      attributes: {
+        "messaging.operation": "process",
+        "messaging.destination.name": "default",
+        "messaging.message.id": event?.id,
+      },
+    },
+    async () => {
+      const startTime = Date.now();
+      const requestObservabilityContext = createEventContext(event, context, {
+        service: "order-processor",
+        operation: "process-order-created",
       });
-      return;
+      const log = logger.createLogger(requestObservabilityContext);
+      const orderId = detail.orderId;
+
+      try {
+        log.info("Order processor received event", { records: event.detail ? 1 : 0 });
+
+        if (!orderId) {
+          log.warn("Event without orderId was ignored", { detail });
+          return;
+        }
+
+        const order = await moveOrderToProcessing(orderId);
+        addSpanEvent("order.processing.started", { orderId });
+
+        const paymentStartTime = Date.now();
+        const paymentResult = await invokePaymentSimulator(order, requestObservabilityContext);
+        const paymentLatencyMs = durationMs(paymentStartTime);
+        await finalizeOrder(orderId, paymentResult);
+
+        addSpanEvent("order.processing.completed", {
+          orderId,
+          paymentStatus: paymentResult.paymentStatus,
+        });
+
+        log.info("Order processed successfully", {
+          orderId,
+          finalStatus: paymentResult.paymentStatus,
+          paymentLatencyMs,
+          processingLatencyMs: durationMs(startTime),
+        });
+      } catch (error) {
+        if (error instanceof ConditionalCheckFailedException) {
+          const currentOrder = await getOrder(orderId);
+          log.info("Duplicate or already processed event skipped", {
+            orderId,
+            currentStatus: currentOrder?.status,
+          });
+          return;
+        }
+
+        recordException(error, {
+          "app.operation": requestObservabilityContext.operation,
+          "app.order_id": orderId,
+        });
+
+        log.error("Order processing failed", {
+          orderId,
+          errorName: error.name,
+          errorMessage: error.message,
+          processingLatencyMs: durationMs(startTime),
+        });
+
+        await failOrder(orderId, error.message);
+        throw error;
+      } finally {
+        await forceFlushOpenTelemetry();
+      }
     }
-
-    log.error("Order processing failed", {
-      orderId,
-      errorName: error.name,
-      errorMessage: error.message,
-      processingLatencyMs: durationMs(startTime),
-    });
-
-    await failOrder(orderId, error.message);
-    throw error;
-  }
+  );
 };
 
 async function moveOrderToProcessing(orderId) {
@@ -110,6 +146,7 @@ async function invokePaymentSimulator(order, observabilityContext) {
           currency: order.currency,
           correlationId: observabilityContext.correlationId,
           requestId: observabilityContext.requestId,
+          traceContext: injectTraceContext({}),
         })
       ),
     })

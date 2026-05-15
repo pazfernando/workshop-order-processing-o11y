@@ -5,6 +5,8 @@ const LEVELS = {
   ERROR: 40,
 };
 
+const { emitStructuredLog } = require("./observability");
+
 const configuredLevel = (process.env.LOG_LEVEL || "INFO").toUpperCase();
 
 function shouldLog(level) {
@@ -24,6 +26,7 @@ function write(level, message, context = {}) {
   };
 
   console.log(JSON.stringify(entry));
+  emitStructuredLog(level, message, entry);
 }
 
 function createLogger(baseContext = {}) {
