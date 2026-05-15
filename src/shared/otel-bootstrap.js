@@ -211,36 +211,56 @@ function waitForOpenTelemetry() {
 }
 
 function forceFlushOpenTelemetry() {
-  const sdk = global[sdkInstanceSymbol];
+  const traceApi = safeRequire("@opentelemetry/api");
+  const logsApi = safeRequire("@opentelemetry/api-logs");
+  const flushTargets = [
+    {
+      name: "traces",
+      provider: traceApi?.trace?.getTracerProvider?.(),
+    },
+    {
+      name: "metrics",
+      provider: traceApi?.metrics?.getMeterProvider?.(),
+    },
+    {
+      name: "logs",
+      provider: logsApi?.logs?.getLoggerProvider?.(),
+    },
+  ];
 
-  if (!sdk || typeof sdk.forceFlush !== "function") {
+  const flushableTargets = flushTargets.filter(({ provider }) => typeof provider?.forceFlush === "function");
+
+  if (flushableTargets.length === 0) {
+    const sdk = global[sdkInstanceSymbol];
+    if (sdk && typeof sdk.forceFlush === "function") {
+      return Promise.resolve(sdk.forceFlush())
+        .then(() => ({
+          flushed: true,
+          skipped: false,
+          flushedSignals: ["sdk"],
+        }))
+        .catch((error) => buildFlushFailure("sdk-forceflush-failed", error));
+    }
+
     return Promise.resolve({
       flushed: false,
       skipped: true,
-      reason: "sdk-forceflush-unavailable",
+      reason: "no-flushable-provider-available",
     });
   }
 
-  return Promise.resolve(sdk.forceFlush())
-    .then(() => ({
+  return Promise.all(
+    flushableTargets.map(async ({ name, provider }) => {
+      await provider.forceFlush();
+      return name;
+    })
+  )
+    .then((flushedSignals) => ({
       flushed: true,
       skipped: false,
+      flushedSignals,
     }))
-    .catch((error) => {
-      logBootstrap("ERROR", "Failed to force flush OpenTelemetry", {
-        errorName: error?.name,
-        errorMessage: error?.message,
-        stack: error?.stack,
-      });
-
-      return {
-        flushed: false,
-        skipped: false,
-        reason: "sdk-forceflush-failed",
-        errorName: error?.name,
-        errorMessage: error?.message,
-      };
-    });
+    .catch((error) => buildFlushFailure("provider-forceflush-failed", error));
 }
 
 function isSignalEnabled(envName) {
@@ -353,6 +373,22 @@ function safeRequire(moduleName) {
 
     throw error;
   }
+}
+
+function buildFlushFailure(reason, error) {
+  logBootstrap("ERROR", "Failed to force flush OpenTelemetry", {
+    errorName: error?.name,
+    errorMessage: error?.message,
+    stack: error?.stack,
+  });
+
+  return {
+    flushed: false,
+    skipped: false,
+    reason,
+    errorName: error?.name,
+    errorMessage: error?.message,
+  };
 }
 
 function logBootstrap(level, message, context = {}) {
