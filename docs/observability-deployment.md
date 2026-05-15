@@ -28,7 +28,7 @@ Ese contrato describe la intención del workload. No define cómo se materializa
 
 En este repo el contrato se entrega a la composite action del IDP, y el deploy consume su `bindings.json` para propagar variables de entorno, layers y managed policies a las Lambdas.
 
-Con el modelo actual del IDP, ese contrato también debe alinearse a métricas gobernadas por preset. Para este workload el preset soportado es `serverless-api`.
+Con el modelo actual del IDP, ese contrato también debe alinearse a métricas gobernadas por preset. Para este workload el preset soportado es `serverless-api-async-workflow`.
 
 ## Validación local
 
@@ -101,9 +101,9 @@ El job `deploy` consume estos outputs del job `observability`, que a su vez expo
 
 ## Latencia y percentiles
 
-La latencia observable del workload se modela con `HttpServerRequestDuration`, alineada al preset `serverless-api`.
+La latencia observable del workload se modela con `HttpServerRequestDuration` para la parte HTTP y `AsyncOperationDuration` para los workers, alineadas al preset `serverless-api-async-workflow`.
 
-`p99` no es una métrica contractual separada. Es un percentil derivado sobre `HttpServerRequestDuration`, normalmente calculado en el dashboard o backend de observabilidad y filtrable por `POST /orders`.
+`p99` no es una métrica contractual separada. Es un percentil derivado sobre los histogramas `HttpServerRequestDuration` y `AsyncOperationDuration`, normalmente calculado en el dashboard o backend de observabilidad.
 
 ## Forma esperada de `bindings.json`
 

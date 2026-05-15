@@ -12,6 +12,7 @@ const {
   addSpanEvent,
   extractTraceContext,
   injectTraceContext,
+  recordAsyncOperationMetrics,
   recordException,
   runWithActiveSpan,
   triggerOpenTelemetryFlush,
@@ -67,6 +68,11 @@ exports.handler = async (event, context) => {
           orderId,
           paymentStatus: paymentResult.paymentStatus,
         });
+        recordAsyncOperationMetrics(requestObservabilityContext, {
+          latencyMs: durationMs(startTime),
+          trigger: "eventbridge",
+          outcome: paymentResult.paymentStatus === "APPROVED" ? "approved" : "rejected",
+        });
 
         log.info("Order processed successfully", {
           orderId,
@@ -87,6 +93,12 @@ exports.handler = async (event, context) => {
         recordException(error, {
           "app.operation": requestObservabilityContext.operation,
           "app.order_id": orderId,
+        });
+        recordAsyncOperationMetrics(requestObservabilityContext, {
+          latencyMs: durationMs(startTime),
+          failed: true,
+          trigger: "eventbridge",
+          outcome: "error",
         });
 
         log.error("Order processing failed", {

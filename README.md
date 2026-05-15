@@ -49,13 +49,16 @@ El camino estándar de despliegue mantiene la integración simple:
 
 ## Metric Catalog
 
-El contrato de observabilidad declara métricas gobernadas por el preset `serverless-api`:
+El contrato de observabilidad declara métricas gobernadas por el preset `serverless-api-async-workflow`:
 
 | Metric | Type | Unit | Meaning |
 | :--- | :--- | :--- | :--- |
 | `HttpServerRequestCount` | `counter` | `{request}` | Total HTTP requests handled by the serverless API. |
 | `HttpServerRequestDuration` | `histogram` | `ms` | End-to-end HTTP request latency for the serverless API. |
 | `HttpServerRequestErrors` | `counter` | `{error}` | HTTP requests that completed with server-side failure conditions. |
+| `AsyncOperationCount` | `counter` | `{operation}` | Total async worker operations handled by the serverless workflow. |
+| `AsyncOperationDuration` | `histogram` | `ms` | End-to-end latency for async worker operations. |
+| `AsyncOperationErrors` | `counter` | `{error}` | Async worker operations that completed with failures. |
 
 Para latencia, la métrica contractual base es `HttpServerRequestDuration`. Percentiles como `p95` o `p99` no son métricas separadas del contrato: se derivan downstream desde ese histograma, idealmente filtrando `POST /orders`.
 

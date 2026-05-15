@@ -599,6 +599,9 @@ jobs:
           | \`HttpServerRequestCount\` | \`counter\` | \`{request}\` | Total HTTP requests handled by the serverless API. |
           | \`HttpServerRequestDuration\` | \`histogram\` | \`ms\` | End-to-end HTTP request latency for the serverless API. Use percentiles such as \`p99\` by filtering \`POST /orders\` downstream in the dashboard or backend. |
           | \`HttpServerRequestErrors\` | \`counter\` | \`{error}\` | HTTP requests that completed with server-side failure conditions. |
+          | \`AsyncOperationCount\` | \`counter\` | \`{operation}\` | Total async worker operations handled by the serverless workflow. |
+          | \`AsyncOperationDuration\` | \`histogram\` | \`ms\` | End-to-end latency for async worker operations. |
+          | \`AsyncOperationErrors\` | \`counter\` | \`{error}\` | Async worker operations that completed with failures. |
 
           ## Notes
 

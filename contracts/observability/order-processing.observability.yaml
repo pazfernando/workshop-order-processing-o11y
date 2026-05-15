@@ -62,6 +62,21 @@ spec:
             unit: "{error}"
             description: HTTP requests that completed with server-side failure conditions.
             dimensions: [http.route, http.request.method, http.response.status_code]
+          - name: AsyncOperationCount
+            type: counter
+            unit: "{operation}"
+            description: Total async worker operations handled by the serverless workflow.
+            dimensions: [app.operation, aws.lambda.function_name, faas.trigger]
+          - name: AsyncOperationDuration
+            type: histogram
+            unit: ms
+            description: End-to-end latency for async worker operations.
+            dimensions: [app.operation, aws.lambda.function_name, faas.trigger]
+          - name: AsyncOperationErrors
+            type: counter
+            unit: "{error}"
+            description: Async worker operations that completed with failures.
+            dimensions: [app.operation, aws.lambda.function_name, faas.trigger]
       logs:
         enabled: true
         ingestion: collector
@@ -70,7 +85,7 @@ spec:
   capabilities:
     dashboards:
       enabled: true
-      preset: serverless-api
+      preset: serverless-api-async-workflow
     alerts:
       enabled: false
     slos:

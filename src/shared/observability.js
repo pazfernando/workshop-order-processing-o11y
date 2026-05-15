@@ -71,11 +71,61 @@ function recordHttpServerMetrics(context, { statusCode, latencyMs }) {
   }
 
   if (shouldEmitEmfCompatibility()) {
-    emitEmfMetric("HttpServerRequestCount", 1, attributes, "{request}");
-    emitEmfMetric("HttpServerRequestDuration", latencyMs, attributes, "Milliseconds");
+    const emfDimensions = {
+      httpRoute: attributes["http.route"],
+      httpMethod: attributes["http.request.method"],
+      statusCode: String(attributes["http.response.status_code"]),
+    };
+    emitEmfMetric("HttpServerRequestCount", 1, emfDimensions, "{request}");
+    emitEmfMetric("HttpServerRequestDuration", latencyMs, emfDimensions, "Milliseconds");
 
     if (normalizedStatusCode >= 500) {
-      emitEmfMetric("HttpServerRequestErrors", 1, attributes, "{error}");
+      emitEmfMetric("HttpServerRequestErrors", 1, emfDimensions, "{error}");
+    }
+  }
+}
+
+function recordAsyncOperationMetrics(context, { latencyMs, failed = false, trigger = "async", outcome = "success" }) {
+  const dimensions = {
+    appOperation: context.operation || "unknown-operation",
+    lambdaFunctionName: readResourceAttribute("aws.lambda.function_name") || process.env.AWS_LAMBDA_FUNCTION_NAME || "unknown-function",
+    faasTrigger: trigger,
+    appOutcome: outcome,
+  };
+  const attributes = {
+    "app.operation": dimensions.appOperation,
+    "aws.lambda.function_name": dimensions.lambdaFunctionName,
+    "faas.trigger": dimensions.faasTrigger,
+    "app.outcome": dimensions.appOutcome,
+  };
+
+  recordMetric("AsyncOperationCount", 1, {
+    unit: "{operation}",
+    description: "Total async worker operations handled by the serverless workflow.",
+    attributes,
+  });
+
+  recordMetric("AsyncOperationDuration", latencyMs, {
+    instrument: "histogram",
+    unit: "ms",
+    description: "End-to-end latency for async worker operations.",
+    attributes,
+  });
+
+  if (failed) {
+    recordMetric("AsyncOperationErrors", 1, {
+      unit: "{error}",
+      description: "Async worker operations that completed with failures.",
+      attributes,
+    });
+  }
+
+  if (shouldEmitEmfCompatibility()) {
+    emitEmfMetric("AsyncOperationCount", 1, dimensions, "{operation}", ["appOperation", "lambdaFunctionName", "faasTrigger", "appOutcome"]);
+    emitEmfMetric("AsyncOperationDuration", latencyMs, dimensions, "Milliseconds", ["appOperation", "lambdaFunctionName", "faasTrigger", "appOutcome"]);
+
+    if (failed) {
+      emitEmfMetric("AsyncOperationErrors", 1, dimensions, "{error}", ["appOperation", "lambdaFunctionName", "faasTrigger", "appOutcome"]);
     }
   }
 }
@@ -253,14 +303,14 @@ function recordMetric(name, value, options = {}) {
   instrument.add(value, attributes);
 }
 
-function emitEmfMetric(name, value, attributes, unit) {
+function emitEmfMetric(name, value, attributes, unit, dimensionKeys = ["httpRoute", "httpMethod", "statusCode"]) {
   const metricEntry = {
     _aws: {
       Timestamp: Date.now(),
       CloudWatchMetrics: [
         {
           Namespace: process.env.METRICS_NAMESPACE || "Workshop/OrderProcessing",
-          Dimensions: [["httpRoute", "httpMethod", "statusCode"]],
+          Dimensions: [dimensionKeys],
           Metrics: [
             {
               Name: name,
@@ -270,9 +320,7 @@ function emitEmfMetric(name, value, attributes, unit) {
         },
       ],
     },
-    httpRoute: attributes["http.route"],
-    httpMethod: attributes["http.request.method"],
-    statusCode: String(attributes["http.response.status_code"]),
+    ...attributes,
     [name]: value,
   };
 
@@ -438,6 +486,7 @@ module.exports = {
   flushOpenTelemetryWithDiagnostics,
   forceFlushOpenTelemetry,
   injectTraceContext,
+  recordAsyncOperationMetrics,
   recordException,
   recordHttpServerMetrics,
   runWithActiveSpan,

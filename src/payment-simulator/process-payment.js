@@ -3,6 +3,7 @@ const {
   createInvocationContext,
   durationMs,
   extractTraceContext,
+  recordAsyncOperationMetrics,
   recordException,
   runWithActiveSpan,
   triggerOpenTelemetryFlush,
@@ -47,7 +48,7 @@ exports.handler = async (event, context) => {
             await sleep(4000);
             break;
           case "random_reject":
-            return buildPaymentResult(orderId, Math.random() < 0.5 ? "REJECTED" : "APPROVED", startTime, log);
+            return buildPaymentResult(orderId, Math.random() < 0.5 ? "REJECTED" : "APPROVED", startTime, log, requestObservabilityContext);
           case "none":
             break;
           default:
@@ -56,11 +57,17 @@ exports.handler = async (event, context) => {
             });
         }
 
-        return buildPaymentResult(orderId, totalAmount <= 1000 ? "APPROVED" : "REJECTED", startTime, log);
+        return buildPaymentResult(orderId, totalAmount <= 1000 ? "APPROVED" : "REJECTED", startTime, log, requestObservabilityContext);
       } catch (error) {
         recordException(error, {
           "app.operation": requestObservabilityContext.operation,
           "app.order_id": orderId,
+        });
+        recordAsyncOperationMetrics(requestObservabilityContext, {
+          latencyMs: durationMs(startTime),
+          failed: true,
+          trigger: "lambda",
+          outcome: "error",
         });
 
         log.error("Payment simulation failed", {
@@ -82,7 +89,13 @@ exports.handler = async (event, context) => {
   );
 };
 
-function buildPaymentResult(orderId, paymentStatus, startTime, log) {
+function buildPaymentResult(orderId, paymentStatus, startTime, log, requestObservabilityContext) {
+  recordAsyncOperationMetrics(requestObservabilityContext, {
+    latencyMs: durationMs(startTime),
+    trigger: "lambda",
+    outcome: paymentStatus === "APPROVED" ? "approved" : "rejected",
+  });
+
   log.info("Payment simulation completed", {
     orderId,
     paymentStatus,
