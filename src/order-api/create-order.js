@@ -12,7 +12,7 @@ const {
   buildResponseHeaders,
   addSpanEvent,
   extractTraceContext,
-  forceFlushOpenTelemetry,
+  flushOpenTelemetryWithDiagnostics,
   injectTraceContext,
   recordException,
   recordHttpServerMetrics,
@@ -140,7 +140,12 @@ exports.handler = async (event, context) => {
 
         return errorResponse;
       } finally {
-        await forceFlushOpenTelemetry();
+        await flushOpenTelemetryWithDiagnostics({
+          route: requestObservabilityContext.routeKey || requestObservabilityContext.path,
+          httpMethod: requestObservabilityContext.httpMethod,
+          requestId: requestObservabilityContext.requestId,
+          correlationId: requestObservabilityContext.correlationId,
+        });
       }
     }
   );

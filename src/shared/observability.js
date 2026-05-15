@@ -175,6 +175,23 @@ function emitStructuredLog(level, message, context) {
   emitLogRecord(level, message, context);
 }
 
+function flushOpenTelemetryWithDiagnostics(context = {}) {
+  logOtelFlush("OpenTelemetry export attempt starting", context);
+
+  return forceFlushOpenTelemetry().then((result) => {
+    logOtelFlush("OpenTelemetry export attempt completed", {
+      ...context,
+      otelFlushCompleted: Boolean(result?.flushed),
+      otelFlushSkipped: Boolean(result?.skipped),
+      otelFlushReason: result?.reason,
+      otelFlushErrorName: result?.errorName,
+      otelFlushErrorMessage: result?.errorMessage,
+    });
+
+    return result;
+  });
+}
+
 function recordMetric(name, value, options = {}) {
   const meter = getMeter();
 
@@ -346,6 +363,21 @@ function parseBoolean(value, defaultValue) {
   return String(value).trim().toLowerCase() === "true";
 }
 
+function logOtelFlush(message, context = {}) {
+  console.log(JSON.stringify(cleanContext({
+    level: "INFO",
+    message,
+    timestamp: new Date().toISOString(),
+    component: "otel-export",
+    serviceName: readResourceAttribute("service.name") || process.env.SERVICE_NAME || "workshop-order-processing",
+    otlpEndpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
+    otlpTracesEndpoint: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
+    otlpMetricsEndpoint: process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT,
+    otlpLogsEndpoint: process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT,
+    ...context,
+  })));
+}
+
 function extractTraceId(traceHeader) {
   if (!traceHeader) {
     return undefined;
@@ -376,6 +408,7 @@ module.exports = {
   durationMs: requestContext.durationMs,
   emitStructuredLog,
   extractTraceContext,
+  flushOpenTelemetryWithDiagnostics,
   forceFlushOpenTelemetry,
   injectTraceContext,
   recordException,

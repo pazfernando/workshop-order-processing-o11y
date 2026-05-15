@@ -214,16 +214,33 @@ function forceFlushOpenTelemetry() {
   const sdk = global[sdkInstanceSymbol];
 
   if (!sdk || typeof sdk.forceFlush !== "function") {
-    return Promise.resolve();
+    return Promise.resolve({
+      flushed: false,
+      skipped: true,
+      reason: "sdk-forceflush-unavailable",
+    });
   }
 
-  return Promise.resolve(sdk.forceFlush()).catch((error) => {
-    logBootstrap("ERROR", "Failed to force flush OpenTelemetry", {
-      errorName: error?.name,
-      errorMessage: error?.message,
-      stack: error?.stack,
+  return Promise.resolve(sdk.forceFlush())
+    .then(() => ({
+      flushed: true,
+      skipped: false,
+    }))
+    .catch((error) => {
+      logBootstrap("ERROR", "Failed to force flush OpenTelemetry", {
+        errorName: error?.name,
+        errorMessage: error?.message,
+        stack: error?.stack,
+      });
+
+      return {
+        flushed: false,
+        skipped: false,
+        reason: "sdk-forceflush-failed",
+        errorName: error?.name,
+        errorMessage: error?.message,
+      };
     });
-  });
 }
 
 function isSignalEnabled(envName) {

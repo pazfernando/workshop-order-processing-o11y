@@ -11,7 +11,7 @@ const {
   durationMs,
   addSpanEvent,
   extractTraceContext,
-  forceFlushOpenTelemetry,
+  flushOpenTelemetryWithDiagnostics,
   injectTraceContext,
   recordException,
   runWithActiveSpan,
@@ -99,7 +99,12 @@ exports.handler = async (event, context) => {
         await failOrder(orderId, error.message);
         throw error;
       } finally {
-        await forceFlushOpenTelemetry();
+        await flushOpenTelemetryWithDiagnostics({
+          operation: requestObservabilityContext.operation,
+          requestId: requestObservabilityContext.requestId,
+          correlationId: requestObservabilityContext.correlationId,
+          orderId,
+        });
       }
     }
   );

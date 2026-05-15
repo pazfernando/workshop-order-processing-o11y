@@ -3,7 +3,7 @@ const {
   createInvocationContext,
   durationMs,
   extractTraceContext,
-  forceFlushOpenTelemetry,
+  flushOpenTelemetryWithDiagnostics,
   recordException,
   runWithActiveSpan,
 } = require("../shared/observability");
@@ -71,7 +71,12 @@ exports.handler = async (event, context) => {
 
         throw error;
       } finally {
-        await forceFlushOpenTelemetry();
+        await flushOpenTelemetryWithDiagnostics({
+          operation: requestObservabilityContext.operation,
+          requestId: requestObservabilityContext.requestId,
+          correlationId: requestObservabilityContext.correlationId,
+          orderId,
+        });
       }
     }
   );

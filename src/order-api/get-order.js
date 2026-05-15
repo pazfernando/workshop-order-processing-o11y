@@ -7,7 +7,7 @@ const {
   durationMs,
   buildResponseHeaders,
   extractTraceContext,
-  forceFlushOpenTelemetry,
+  flushOpenTelemetryWithDiagnostics,
   recordException,
   recordHttpServerMetrics,
   runWithActiveSpan,
@@ -110,7 +110,12 @@ exports.handler = async (event, context) => {
 
         return errorResponse;
       } finally {
-        await forceFlushOpenTelemetry();
+        await flushOpenTelemetryWithDiagnostics({
+          route: requestObservabilityContext.routeKey || requestObservabilityContext.path,
+          httpMethod: requestObservabilityContext.httpMethod,
+          requestId: requestObservabilityContext.requestId,
+          correlationId: requestObservabilityContext.correlationId,
+        });
       }
     }
   );
