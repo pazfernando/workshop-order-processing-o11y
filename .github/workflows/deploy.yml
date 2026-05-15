@@ -597,10 +597,10 @@ jobs:
           | Metric | Type | Unit | Meaning |
           | :--- | :--- | :--- | :--- |
           | \`HttpServerRequestCount\` | \`counter\` | \`{request}\` | Total HTTP requests handled by the serverless API. |
-          | \`HttpServerRequestDuration\` | \`histogram\` | \`ms\` | End-to-end HTTP request latency for the serverless API. Use percentiles such as \`p99\` by filtering \`POST /orders\` downstream in the dashboard or backend. |
+          | \`HttpServerRequestDuration\` | \`histogram\` | \`ms\` | End-to-end HTTP request latency for the serverless API. Percentiles such as \`p95\` and \`p99\` are derived downstream from this histogram. |
           | \`HttpServerRequestErrors\` | \`counter\` | \`{error}\` | HTTP requests that completed with server-side failure conditions. |
           | \`AsyncOperationCount\` | \`counter\` | \`{operation}\` | Total async worker operations handled by the serverless workflow. |
-          | \`AsyncOperationDuration\` | \`histogram\` | \`ms\` | End-to-end latency for async worker operations. |
+          | \`AsyncOperationDuration\` | \`histogram\` | \`ms\` | End-to-end latency for async worker operations. Percentiles such as \`p95\` and \`p99\` are derived downstream from this histogram. |
           | \`AsyncOperationErrors\` | \`counter\` | \`{error}\` | Async worker operations that completed with failures. |
 
           ## Notes

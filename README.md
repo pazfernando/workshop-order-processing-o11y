@@ -60,7 +60,7 @@ El contrato de observabilidad declara métricas gobernadas por el preset `server
 | `AsyncOperationDuration` | `histogram` | `ms` | End-to-end latency for async worker operations. |
 | `AsyncOperationErrors` | `counter` | `{error}` | Async worker operations that completed with failures. |
 
-Para latencia, la métrica contractual base es `HttpServerRequestDuration`. Percentiles como `p95` o `p99` no son métricas separadas del contrato: se derivan downstream desde ese histograma, idealmente filtrando `POST /orders`.
+Para latencia, las métricas contractuales base son `HttpServerRequestDuration` para la API y `AsyncOperationDuration` para los workers. Percentiles como `p95` o `p99` no son métricas separadas del contrato: se derivan downstream desde esos histogramas.
 
 ## Contrato e integración con IDP
 
